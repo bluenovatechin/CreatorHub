@@ -22,7 +22,7 @@ import { UserModel, type UserDoc } from '../../models/user';
 import { email, emails } from '../../providers/email';
 import {
   checkCredentials, clearLoginFailures, consumeEmailToken, createEmailToken, emailLink, endAllSessions, endSession,
-  hashPassword, peekSignupTicket, refreshSession, startSession, verifyPassword, verifyTotp,
+  hashPassword, peekEmailToken, peekSignupTicket, refreshSession, startSession, verifyPassword, verifyTotp,
 } from './auth.service';
 
 export const authRouter = Router();
@@ -185,11 +185,13 @@ authRouter.post('/password/forgot', rateLimits.emailLinks, validate({ body: emai
 
 authRouter.post('/password/reset', rateLimits.emailLinks, validate({ body: resetPasswordSchema }), h(async (req, res) => {
   const d = input<{ token: string; password: string }>(req);
-  const userId = await consumeEmailToken(d.token, 'reset_password');
+  // Check everything first; only use up the link when the new password is accepted.
+  const userId = await peekEmailToken(d.token, 'reset_password');
   const user = await UserModel.findById(userId);
   if (!user || user.status !== 'active') throw new AppError('VALIDATION_ERROR', 'errors.linkInvalid');
   const problem = passwordProblem(d.password, { email: user.email, name: user.name });
   if (problem) throw new AppError('VALIDATION_ERROR', 'errors.VALIDATION_ERROR', { password: problem });
+  await consumeEmailToken(d.token, 'reset_password'); // atomic: a link still works only once
   await setPassword(user, d.password);
   ok(res, { done: true, area: user.role === 'admin' ? 'admin' : 'app' });
 }));

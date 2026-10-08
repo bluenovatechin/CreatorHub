@@ -131,7 +131,7 @@ export const emails = {
   reset: (to: string, name: string, link: string): EmailMessage => ({
     to, link,
     subject: 'Reset your password — Bluenova Creator Hub',
-    text: `Hi ${name},\n\nUse this link to set a new password:\n${link}\n\nપાસવર્ડ બદલવા ઉપરની link ખોલો.\nThe link expires in 30 minutes and works once. If you didn't ask for this, ignore this email — your password stays the same.${footer}`,
+    text: `Hi ${name},\n\nUse this link to set a new password:\n${link}\n\nપાસવર્ડ બદલવા ઉપરની link ખોલો.\nThe link expires in 1 hour and works once. If you ask for another reset email, only the newest link works. If you didn't ask for this, ignore this email — your password stays the same.${footer}`,
   }),
   passwordChanged: (to: string, name: string): EmailMessage => ({
     to,

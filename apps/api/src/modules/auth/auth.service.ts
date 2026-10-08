@@ -87,7 +87,7 @@ export async function checkCredentials(email: string, password: string): Promise
 
 /* ---------------- email links ---------------- */
 
-const LINK_TTL = { verify_email: 24 * 3_600_000, reset_password: 30 * 60_000, signup_ticket: 60 * 60_000 } as const;
+const LINK_TTL = { verify_email: 24 * 3_600_000, reset_password: 60 * 60_000, signup_ticket: 60 * 60_000 } as const;
 
 export async function createEmailToken(userId: unknown, purpose: keyof typeof LINK_TTL): Promise<string> {
   // Older unused links for the same purpose stop working.
@@ -103,8 +103,23 @@ export async function consumeEmailToken(raw: string, purpose: keyof typeof LINK_
     { tokenHash: sha256(raw), purpose, usedAt: null, expiresAt: { $gt: new Date() } },
     { $set: { usedAt: new Date() } },
   );
-  if (!doc) throw new AppError('VALIDATION_ERROR', 'errors.linkInvalid');
+  if (!doc) throw await linkProblem(raw, purpose);
   return String(doc.userId);
+}
+
+/** Checks a link is still usable WITHOUT using it up (so a rejected form submission doesn't burn the link). */
+export async function peekEmailToken(raw: string, purpose: keyof typeof LINK_TTL): Promise<string> {
+  const doc = await EmailTokenModel.findOne({ tokenHash: sha256(raw), purpose, usedAt: null, expiresAt: { $gt: new Date() } }).lean();
+  if (!doc) throw await linkProblem(raw, purpose);
+  return String(doc.userId);
+}
+
+/** Tells the user exactly why a link doesn't work (only the link holder sees this). */
+async function linkProblem(raw: string, purpose: keyof typeof LINK_TTL): Promise<AppError> {
+  const doc = await EmailTokenModel.findOne({ tokenHash: sha256(raw), purpose }).lean();
+  if (doc?.usedAt) return new AppError('VALIDATION_ERROR', 'errors.linkUsed');
+  if (doc && doc.expiresAt.getTime() <= Date.now()) return new AppError('VALIDATION_ERROR', 'errors.linkExpired');
+  return new AppError('VALIDATION_ERROR', 'errors.linkInvalid');
 }
 
 /** Looks up a signup ticket without using it up. Returns the user id, or null. */

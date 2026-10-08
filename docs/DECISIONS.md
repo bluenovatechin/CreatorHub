@@ -93,3 +93,7 @@ Record every deviation from `BLUENOVA_AI_BUILD_PROMPT.md` and every assumption h
 - **Atlas free tier** is used for testing (client decision). It has no automatic backups, so revisit before real users.
 - **API build** uses `tsup.config.ts` (bundles `@bluenova/shared`); `npm start` runs `dist/server.js`.
 - `.gitignore` covers dependencies, builds, every `.env*` except `.env.example`, `ADMIN_SECRET.txt`, keys, logs and editor files.
+
+## 2026-10-08: reset-link bug fix
+- **Bug:** the reset link was used up before the new password was checked, so a password rejected on the server (for example, one containing the user's name) left the user with an "expired" link. Fixed: the link is checked without being used, the password is validated, and only then is the link consumed (atomically, still single-use).
+- Reset links now last **1 hour** (was 30 minutes). Errors now say whether a link was already used or replaced by a newer email (`errors.linkUsed`) or has expired (`errors.linkExpired`).

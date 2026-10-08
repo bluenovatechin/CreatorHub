@@ -226,7 +226,7 @@
     "forgotTitle": "Forgot your password?",
     "forgotText": "Enter your account email and we'll send you a link to reset it.",
     "sendLink": "Send reset link",
-    "forgotSent": "If an account exists for {{email}}, a reset link is on its way. It expires in 30 minutes.",
+    "forgotSent": "If an account exists for {{email}}, a reset link is on its way. It expires in 1 hour. Only the newest email's link works.",
     "resetTitle": "Set a new password",
     "resetText": "Choose a strong password you don't use anywhere else.",
     "newPassword": "New password",
@@ -780,7 +780,9 @@
       "invalid_literal": "Please accept to continue"
     },
     "serverDown": "Can't reach the Bluenova server right now. Please try again in a minute.",
-    "emailNotVerifiedYet": "Your email is not verified yet. Click the link in the email first."
+    "emailNotVerifiedYet": "Your email is not verified yet. Click the link in the email first.",
+    "linkUsed": "This link was already used, or a newer email replaced it. Please use the link from the newest email, or request a new one.",
+    "linkExpired": "This link has expired. Please request a new one."
   },
   "footer": {
     "tagline": "Brands અને creators વચ્ચે collaboration માટેનું platform.",

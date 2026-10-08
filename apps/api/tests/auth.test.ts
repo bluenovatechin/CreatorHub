@@ -118,11 +118,36 @@ describe('forgot and reset password', () => {
       .send({ token: link, password: 'password123', confirmPassword: 'password123' }).expect(400); // weak password rejected
     await request(app).post('/api/v1/auth/password/reset')
       .send({ token: link, password: 'New-Monsoon-77', confirmPassword: 'New-Monsoon-77' }).expect(200);
-    await request(app).post('/api/v1/auth/password/reset')
+    const reused = await request(app).post('/api/v1/auth/password/reset')
       .send({ token: link, password: 'Another-Pass-77', confirmPassword: 'Another-Pass-77' }).expect(400); // single use
+    expect(reused.body.error.message).toBe('errors.linkUsed');
     await request(app).get('/api/v1/me').set(bearer(token)).expect(401); // old session ended
     await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(401);
     await request(app).post('/api/v1/auth/login').send({ email, password: 'New-Monsoon-77' }).expect(200);
+  });
+
+  it('a rejected new password does not use up the reset link (bug fix)', async () => {
+    const { email } = await signup('creator', 'Neha Patel');
+    await request(app).post('/api/v1/auth/password/forgot').send({ email }).expect(200);
+    const link = lastEmailToken(email);
+    // Contains the user's name: rejected by the server-side personal-info check…
+    const r1 = await request(app).post('/api/v1/auth/password/reset').send({ token: link, password: 'Neha-Monsoon-77', confirmPassword: 'Neha-Monsoon-77' }).expect(400);
+    expect(r1.body.error.fields.password).toBe('errors.passwordPersonal');
+    // …but the same link still works for a good password.
+    await request(app).post('/api/v1/auth/password/reset').send({ token: link, password: 'Fresh-Monsoon-77', confirmPassword: 'Fresh-Monsoon-77' }).expect(200);
+    await request(app).post('/api/v1/auth/login').send({ email, password: 'Fresh-Monsoon-77' }).expect(200);
+  });
+
+  it('explains when an older reset link was replaced by a newer email', async () => {
+    const { email } = await signup('brand');
+    await request(app).post('/api/v1/auth/password/forgot').send({ email }).expect(200);
+    const older = lastEmailToken(email);
+    const { EmailTokenModel } = await import('../src/models/auth');
+    await EmailTokenModel.collection.updateMany({ purpose: 'reset_password' }, { $set: { createdAt: new Date(Date.now() - 120_000) } }); // past the 1-minute resend limit
+    await request(app).post('/api/v1/auth/password/forgot').send({ email }).expect(200);
+    const r = await request(app).post('/api/v1/auth/password/reset').send({ token: older, password: 'Fresh-Monsoon-77', confirmPassword: 'Fresh-Monsoon-77' }).expect(400);
+    expect(r.body.error.message).toBe('errors.linkUsed');
+    await request(app).post('/api/v1/auth/password/reset').send({ token: lastEmailToken(email), password: 'Fresh-Monsoon-77', confirmPassword: 'Fresh-Monsoon-77' }).expect(200);
   });
 
   it('change password requires the current password', async () => {
