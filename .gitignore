@@ -1,0 +1,41 @@
+# ── Dependencies ─────────────────────────────
+node_modules/
+.pnpm-store/
+
+# ── Build output ─────────────────────────────
+dist/
+build/
+.vite/
+.turbo/
+*.tsbuildinfo
+coverage/
+
+# ── Secrets & local config (NEVER commit) ────
+.env
+.env.*
+!.env.example
+ADMIN_SECRET.txt
+*.pem
+*.key
+*.p12
+
+# ── Logs ─────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+
+# ── Editors & operating systems ──────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Local temporary files ────────────────────
+.dev-uploads/
+tmp/
+.cache/
+
+# ── Hosting tool folders ─────────────────────
+.vercel/

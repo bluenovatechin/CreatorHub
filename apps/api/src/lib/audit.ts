@@ -1,0 +1,34 @@
+import type { Request } from 'express';
+import type { ClientSession, Types } from 'mongoose';
+import { AuditLogModel } from '../models/system';
+import { logger } from './logger';
+
+/** Record an admin or security-relevant action. Never pass decrypted secrets in `changes`. */
+export async function audit(
+  req: Request,
+  action: string,
+  entityType: string,
+  entityId: Types.ObjectId | string | undefined,
+  extra: { changes?: Record<string, unknown>; reason?: string } = {},
+  session?: ClientSession,
+) {
+  try {
+    await AuditLogModel.create([{
+      actorId: req.auth?.id,
+      actorRole: req.auth?.role ?? undefined,
+      adminRole: req.auth?.adminRole ?? undefined,
+      action,
+      entityType,
+      entityId,
+      changes: extra.changes,
+      reason: extra.reason,
+      ip: req.ip,
+      userAgent: req.get('user-agent')?.slice(0, 300),
+      requestId: req.id,
+    }], { session });
+  } catch (err) {
+    // Inside a transaction, the failure must abort the business change too.
+    if (session) throw err;
+    logger.error({ err, action }, 'audit log write failed');
+  }
+}

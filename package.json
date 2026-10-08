@@ -1,0 +1,28 @@
+{
+  "name": "bluenova-creatorhub",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k --raw \"npm run -s dev -w @bluenova/api\" \"npm run -s dev -w @bluenova/web -- --logLevel warn\" \"npm run -s dev -w @bluenova/admin -- --logLevel warn\"",
+    "dev:api": "npm run dev -w @bluenova/api",
+    "dev:web": "npm run dev -w @bluenova/web",
+    "dev:admin": "npm run dev -w @bluenova/admin",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "seed": "npm run seed -w @bluenova/api",
+    "seed:superadmin": "npm run seed:superadmin -w @bluenova/api --",
+    "dev:demo": "concurrently -k --raw \"npm run -s dev:memory -w @bluenova/api\" \"npm run -s dev -w @bluenova/web -- --logLevel warn\" \"npm run -s dev -w @bluenova/admin -- --logLevel warn\"",
+    "email:test": "npm run -s email:test -w @bluenova/api --"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

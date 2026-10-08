@@ -1,0 +1,118 @@
+import { authenticator } from 'otplib';
+import mongoose from 'mongoose';
+import request from 'supertest';
+import { afterAll, beforeAll, inject } from 'vitest';
+import type { AdminRole } from '@bluenova/shared';
+import { createApp } from '../src/app';
+import { encrypt } from '../src/lib/crypto';
+import { clearUserCache } from '../src/lib/userCache';
+import { UserModel } from '../src/models/user';
+import { hashPassword } from '../src/modules/auth/auth.service';
+import { consoleEmail } from '../src/providers/email';
+
+export const app = createApp();
+export const ORIGIN = 'http://localhost:5180';
+export const ADMIN_ORIGIN = 'http://localhost:5181';
+export const PASSWORD = 'Monsoon-Chai-42';
+
+export function useDatabase(name: string) {
+  beforeAll(async () => {
+    const base = inject('mongoUri');
+    const uri = base.replace(/\/(\?|$)/, `/${name}$1`);
+    await mongoose.connect(uri);
+    await mongoose.connection.db!.dropDatabase();
+    await Promise.all(Object.values(mongoose.models).map((m) => m.createIndexes()));
+  });
+  afterAll(async () => {
+    clearUserCache();
+    await mongoose.disconnect();
+  });
+}
+
+let counter = 0;
+export const nextEmail = () => `person${++counter}.${Date.now()}@example.com`;
+export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+/** Token from the most recent email sent to an address (dev/test email provider). */
+export function lastEmailToken(to: string): string {
+  const msg = [...consoleEmail.sent].reverse().find((m) => m.to === to && m.link?.includes('#token='));
+  if (!msg) throw new Error(`no email link for ${to}`);
+  return msg.link!.split('#token=')[1];
+}
+
+/** Signs up, verifies the email and returns a logged-in session. */
+export async function signup(role: 'creator' | 'brand', name = role === 'creator' ? 'Riya Shah' : 'Asha Patel') {
+  const email = nextEmail();
+  const agent = request.agent(app);
+  await agent.post('/api/v1/auth/signup')
+    .send({ name, email, password: PASSWORD, confirmPassword: PASSWORD, role, acceptTerms: true }).expect(201);
+  const res = await agent.post('/api/v1/auth/verify-email').send({ token: lastEmailToken(email) }).expect(200);
+  return { agent, token: res.body.data.accessToken as string, email };
+}
+
+/** Creates an admin with password + TOTP and logs in through both steps. */
+export async function loginAdmin(adminRole: AdminRole) {
+  const email = nextEmail();
+  const secret = authenticator.generateSecret(20);
+  await UserModel.create({
+    email, name: `Team ${adminRole.replace('_', ' ')}`, role: 'admin', adminRole, emailVerifiedAt: new Date(),
+    passwordHash: await hashPassword(PASSWORD), totpSecret: encrypt(secret), totpEnabled: true,
+  });
+  const agent = request.agent(app);
+  const r1 = await agent.post('/api/v1/auth/admin/login').send({ email, password: PASSWORD }).expect(200);
+  const r2 = await agent.post('/api/v1/auth/admin/totp/verify')
+    .send({ mfaToken: r1.body.data.mfaToken, code: authenticator.generate(secret) }).expect(200);
+  return { agent, token: r2.body.data.accessToken as string, secret, email };
+}
+
+export const creatorSteps = {
+  1: {
+    fullName: 'રિયા શાહ', displayName: 'Riya Eats', phone: '98250 41234', igHandle: '@riya.eats', city: 'surat', languages: ['gu', 'en'],
+    consents: { creatorAgreement: true },
+  },
+  2: { categories: ['food', 'travel'] },
+  3: { reels: ['https://www.instagram.com/reel/AbCdE12345/', 'https://www.instagram.com/reel/XyZaB67890/'] },
+  4: { followers: 45000, avgViews: 20000, engagementRate: 4.5, rateCard: { REEL: 8000 }, acceptsBarter: true },
+};
+
+export async function onboardedCreator() {
+  const c = await signup('creator');
+  for (const step of [1, 2, 3, 4] as const) {
+    await request(app).put(`/api/v1/creators/me/onboarding/${step}`).set(bearer(c.token)).send(creatorSteps[step]).expect(200);
+  }
+  await request(app).post('/api/v1/creators/me/submit').set(bearer(c.token)).expect(200);
+  return c;
+}
+
+export const brandProfile = {
+  companyName: 'Surat Sweets', contactName: 'Asha Patel', phone: '9825077777', industry: 'food', city: 'surat',
+  billingAddress: { line1: 'Ring Road', city: 'Surat', stateCode: '24', pincode: '395003' },
+  consents: { brandAgreement: true },
+};
+
+export async function activeBrand() {
+  const b = await signup('brand');
+  await request(app).put('/api/v1/brands/me').set(bearer(b.token)).send(brandProfile).expect(200);
+  return b;
+}
+
+const inDays = (n: number) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(Date.now() + n * 86_400_000));
+export const todayStr = () => inDays(0);
+
+export const campaignSteps = {
+  1: { title: 'Diwali sweets launch', goal: 'LAUNCH', description: 'Promote our new Diwali sweet boxes across Surat.' },
+  2: { categories: ['food'], cities: ['surat'], languages: ['gu'], followerBands: ['MICRO'], genders: [], ageGroups: [] },
+  3: { deliverables: [{ type: 'REEL', quantity: 1 }], creatorsNeeded: 2, collabType: 'PAID' },
+  4: { startDate: inDays(2), endDate: inDays(20), dos: ['Show the box'], donts: [], referenceUrls: [], hashtags: ['#diwali'], mentions: [], maxRevisions: 2 },
+  5: { budgetSuggest: false, budgetMin: 10000, budgetMax: 30000, usageRightsRequired: false },
+};
+
+export async function submittedCampaign(token: string) {
+  const r = await request(app).post('/api/v1/campaigns').set(bearer(token)).send(campaignSteps[1]).expect(201);
+  const id = r.body.data.id as string;
+  for (const step of [2, 3, 4, 5] as const) {
+    await request(app).put(`/api/v1/campaigns/${id}/wizard/${step}`).set(bearer(token)).send(campaignSteps[step]).expect(200);
+  }
+  await request(app).post(`/api/v1/campaigns/${id}/submit`).set(bearer(token)).expect(200);
+  return id;
+}

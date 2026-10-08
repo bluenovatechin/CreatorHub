@@ -1,0 +1,198 @@
+import request from 'supertest';
+import { describe, expect, it } from 'vitest';
+import { authenticator } from 'otplib';
+import { RefreshTokenModel } from '../src/models/auth';
+import { AuditLogModel } from '../src/models/system';
+import { UserModel } from '../src/models/user';
+import { verifyTotp } from '../src/modules/auth/auth.service';
+import { consoleEmail } from '../src/providers/email';
+import { ADMIN_ORIGIN, ORIGIN, PASSWORD, app, bearer, lastEmailToken, loginAdmin, nextEmail, signup, useDatabase } from './helpers';
+
+useDatabase('auth_tests');
+
+const cookieOf = (res: request.Response, name: string) =>
+  ([] as string[]).concat(res.headers['set-cookie'] ?? []).find((c) => c.startsWith(`${name}=`));
+const signupBody = (email: string, extra: Record<string, unknown> = {}) =>
+  ({ name: 'Riya Shah', email, password: PASSWORD, confirmPassword: PASSWORD, role: 'creator', acceptTerms: true, ...extra });
+
+describe('signup and email verification', () => {
+  it('validates every field', async () => {
+    const email = nextEmail();
+    const bad = async (extra: Record<string, unknown>) => {
+      const r = await request(app).post('/api/v1/auth/signup').send(signupBody(email, extra));
+      expect(r.status).toBe(400);
+      return r.body.error.fields;
+    };
+    expect(await bad({ email: 'not-an-email' })).toHaveProperty('email');
+    expect(await bad({ email: 'x@mailinator.com' })).toHaveProperty('email', 'errors.emailDisposable');
+    expect(await bad({ name: 'test' })).toHaveProperty('name', 'errors.nameFake');
+    expect(await bad({ password: 'short1', confirmPassword: 'short1' })).toHaveProperty('password', 'errors.passwordShort');
+    expect(await bad({ password: 'password123', confirmPassword: 'password123' })).toHaveProperty('password', 'errors.passwordCommon');
+    expect(await bad({ confirmPassword: 'Different-Pass-9' })).toHaveProperty('confirmPassword', 'errors.passwordMismatch');
+    expect(await bad({ role: 'admin' })).toHaveProperty('role');
+    expect(await bad({ acceptTerms: false })).toHaveProperty('acceptTerms');
+  });
+
+  it('requires email verification before login, and verification links work once', async () => {
+    const email = nextEmail();
+    await request(app).post('/api/v1/auth/signup').send(signupBody(email)).expect(201);
+    const user = await UserModel.findOne({ email }).select('+passwordHash').lean();
+    expect(user!.passwordHash).toMatch(/^\$argon2id\$/); // never stored in plain text
+    const login = await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD });
+    expect(login.status).toBe(403);
+    expect(login.body.error.message).toBe('errors.emailNotVerified');
+    const token = lastEmailToken(email);
+    const v = await request(app).post('/api/v1/auth/verify-email').send({ token }).expect(200);
+    expect(v.body.data.accessToken).toBeTruthy();
+    await request(app).post('/api/v1/auth/verify-email').send({ token }).expect(400); // single use
+    await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(200);
+  });
+
+  it('does not reveal whether an email is already registered', async () => {
+    const { email } = await signup('creator');
+    const r = await request(app).post('/api/v1/auth/signup').send(signupBody(email));
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ data: { sent: true } });
+    expect(consoleEmail.sent.at(-1)!.subject).toMatch(/already have/); // the real owner gets a heads-up email
+  });
+});
+
+describe('login', () => {
+  it('gives the same error for unknown emails and wrong passwords, and sets a strict httpOnly cookie on success', async () => {
+    const { email } = await signup('brand');
+    const unknown = await request(app).post('/api/v1/auth/login').send({ email: nextEmail(), password: PASSWORD });
+    const wrong = await request(app).post('/api/v1/auth/login').send({ email, password: 'Wrong-Pass-99' });
+    expect(unknown.status).toBe(401);
+    expect(wrong.status).toBe(401);
+    expect(unknown.body.error.message).toBe(wrong.body.error.message);
+    const ok = await request(app).post('/api/v1/auth/login').send({ email: email.toUpperCase(), password: PASSWORD }).expect(200);
+    const cookie = cookieOf(ok, 'bn_rt')!;
+    expect(cookie).toMatch(/HttpOnly/i);
+    expect(cookie).toMatch(/SameSite=Strict/i);
+    expect(JSON.stringify(ok.body)).not.toContain('passwordHash');
+  });
+
+  it('locks an email after 5 failed attempts, even with the right password', async () => {
+    const { email } = await signup('creator');
+    for (let i = 0; i < 5; i++) await request(app).post('/api/v1/auth/login').send({ email, password: 'Wrong-Pass-99' }).expect(401);
+    const r = await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD });
+    expect(r.status).toBe(429);
+    expect(r.body.error.message).toBe('errors.loginLocked');
+  });
+
+  it('admins cannot log in on the creator/brand site', async () => {
+    const admin = await loginAdmin('reviewer');
+    await request(app).post('/api/v1/auth/login').send({ email: admin.email, password: PASSWORD }).expect(401);
+  });
+});
+
+describe('forgot and reset password', () => {
+  it('answers identically for unknown emails and resets with a single-use link that logs out every device', async () => {
+    const { email, token } = await signup('creator');
+    const unknown = await request(app).post('/api/v1/auth/password/forgot').send({ email: nextEmail() });
+    const known = await request(app).post('/api/v1/auth/password/forgot').send({ email });
+    expect(unknown.body).toEqual(known.body);
+    const link = lastEmailToken(email);
+    await request(app).post('/api/v1/auth/password/reset')
+      .send({ token: link, password: 'password123', confirmPassword: 'password123' }).expect(400); // weak password rejected
+    await request(app).post('/api/v1/auth/password/reset')
+      .send({ token: link, password: 'New-Monsoon-77', confirmPassword: 'New-Monsoon-77' }).expect(200);
+    await request(app).post('/api/v1/auth/password/reset')
+      .send({ token: link, password: 'Another-Pass-77', confirmPassword: 'Another-Pass-77' }).expect(400); // single use
+    await request(app).get('/api/v1/me').set(bearer(token)).expect(401); // old session ended
+    await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(401);
+    await request(app).post('/api/v1/auth/login').send({ email, password: 'New-Monsoon-77' }).expect(200);
+  });
+
+  it('change password requires the current password', async () => {
+    const { token } = await signup('brand');
+    await request(app).post('/api/v1/auth/password/change').set(bearer(token))
+      .send({ currentPassword: 'Wrong-Pass-99', password: 'Fresh-Start-55', confirmPassword: 'Fresh-Start-55' }).expect(400);
+    const r = await request(app).post('/api/v1/auth/password/change').set(bearer(token))
+      .send({ currentPassword: PASSWORD, password: 'Fresh-Start-55', confirmPassword: 'Fresh-Start-55' }).expect(200);
+    await request(app).get('/api/v1/me').set(bearer(token)).expect(401); // old token revoked
+    await request(app).get('/api/v1/me').set(bearer(r.body.data.accessToken)).expect(200); // new session works
+  });
+});
+
+describe('sessions', () => {
+  it('requires an allowed Origin on refresh (CSRF defence)', async () => {
+    const { agent } = await signup('creator');
+    await agent.post('/api/v1/auth/refresh').expect(403);
+    await agent.post('/api/v1/auth/refresh').set('Origin', 'https://evil.example').expect(403);
+    await agent.post('/api/v1/auth/refresh').set('Origin', ORIGIN).expect(200);
+  });
+
+  it('rotates refresh tokens and revokes the family when an old token is reused', async () => {
+    const { agent } = await signup('creator');
+    const first = await agent.post('/api/v1/auth/refresh').set('Origin', ORIGIN).expect(200);
+    const oldCookie = cookieOf(first, 'bn_rt')!.split(';')[0];
+    await agent.post('/api/v1/auth/refresh').set('Origin', ORIGIN).expect(200);
+    await RefreshTokenModel.updateMany({ revokedAt: { $ne: null } }, { $set: { revokedAt: new Date(Date.now() - 60_000) } });
+    await request(app).post('/api/v1/auth/refresh').set('Origin', ORIGIN).set('Cookie', oldCookie).expect(401);
+    await agent.post('/api/v1/auth/refresh').set('Origin', ORIGIN).expect(401);
+  });
+
+  it('a logged-out refresh token can never be reused, even within the grace window', async () => {
+    const { agent } = await signup('brand');
+    const r = await agent.post('/api/v1/auth/refresh').set('Origin', ORIGIN).expect(200);
+    const cookie = cookieOf(r, 'bn_rt')!.split(';')[0];
+    await agent.post('/api/v1/auth/logout').set('Origin', ORIGIN).expect(200);
+    await request(app).post('/api/v1/auth/refresh').set('Origin', ORIGIN).set('Cookie', cookie).expect(401);
+  });
+
+  it('logout-all invalidates existing access tokens immediately', async () => {
+    const { token } = await signup('creator');
+    await request(app).get('/api/v1/me').set(bearer(token)).expect(200);
+    await request(app).post('/api/v1/auth/logout-all').set(bearer(token)).expect(200);
+    await request(app).get('/api/v1/me').set(bearer(token)).expect(401);
+  });
+
+  it('rejects missing, malformed and forged tokens', async () => {
+    await request(app).get('/api/v1/me').expect(401);
+    await request(app).get('/api/v1/me').set('Authorization', 'Bearer not.a.jwt').expect(401);
+    const forged = 'eyJhbGciOiJub25lIn0.eyJzdWIiOiIxMjMiLCJ0diI6MCwidHlwIjoiYWNjZXNzIn0.';
+    await request(app).get('/api/v1/me').set('Authorization', `Bearer ${forged}`).expect(401);
+  });
+});
+
+describe('roles', () => {
+  it('keeps creators, brands and admins in their own areas', async () => {
+    const creator = await signup('creator');
+    const brand = await signup('brand');
+    await request(app).get('/api/v1/brands/me').set(bearer(creator.token)).expect(403);
+    await request(app).get('/api/v1/creators/me').set(bearer(brand.token)).expect(403);
+    await request(app).get('/api/v1/admin/dashboard').set(bearer(creator.token)).expect(401);
+    const admin = await loginAdmin('reviewer');
+    await request(app).get('/api/v1/creators/me').set(bearer(admin.token)).expect(401);
+    await request(app).get('/api/v1/admin/campaigns').set(bearer(admin.token)).expect(403);
+    await request(app).get('/api/v1/admin/audit-logs').set(bearer(admin.token)).expect(403);
+  });
+});
+
+describe('admin login', () => {
+  it('requires password then a one-time authenticator code', async () => {
+    const admin = await loginAdmin('super_admin');
+    await request(app).get('/api/v1/admin/dashboard').set(bearer(admin.token)).expect(200);
+    const user = await UserModel.findOne({ email: admin.email });
+    await expect(verifyTotp(String(user!._id), authenticator.generate(admin.secret))).rejects.toThrow(); // replay blocked
+  });
+
+  it('rejects creators on the admin login and wrong authenticator codes', async () => {
+    const { email } = await signup('creator');
+    await request(app).post('/api/v1/auth/admin/login').send({ email, password: PASSWORD }).expect(401);
+    const admin = await loginAdmin('finance');
+    const r1 = await request(app).post('/api/v1/auth/admin/login').send({ email: admin.email, password: PASSWORD }).expect(200);
+    const good = authenticator.generate(admin.secret);
+    await request(app).post('/api/v1/auth/admin/totp/verify').set('Origin', ADMIN_ORIGIN)
+      .send({ mfaToken: r1.body.data.mfaToken, code: good === '123456' ? '654321' : '123456' }).expect(400);
+  });
+});
+
+describe('audit log', () => {
+  it('is append-only', async () => {
+    const entry = await AuditLogModel.create({ action: 'test', entityType: 'Test' });
+    await expect(AuditLogModel.updateOne({ _id: entry._id }, { $set: { action: 'changed' } })).rejects.toThrow(/append-only/);
+    await expect(AuditLogModel.deleteOne({ _id: entry._id })).rejects.toThrow(/append-only/);
+  });
+});

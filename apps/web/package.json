@@ -1,0 +1,38 @@
+{
+  "name": "@bluenova/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5180 --strictPort",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview --port 5180",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@bluenova/shared": "*",
+    "@bluenova/ui": "*",
+    "@fontsource/inter": "^5.1.1",
+    "@fontsource/noto-sans-gujarati": "^5.1.1",
+    "@fontsource/plus-jakarta-sans": "^5.3.0",
+    "@hookform/resolvers": "^3.9.1",
+    "@tanstack/react-query": "^5.62.8",
+    "i18next": "^24.2.0",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.54.2",
+    "react-i18next": "^15.2.0",
+    "react-router-dom": "^6.28.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.0.6"
+  }
+}
