@@ -53,7 +53,8 @@
     "copy": "Copy",
     "copied": "Copied",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "testBanner": "Test version — data may be reset at any time."
   },
   "lang": {
     "gu": "ગુજરાતી",
@@ -235,7 +236,13 @@
     "roleTitle": "How will you use Bluenova?",
     "roleNote": "You can't change this later.",
     "acceptTermsPre": "I agree to the",
-    "and": "and the"
+    "and": "and the",
+    "createdLogin": "Account created! You can log in now.",
+    "waiting": "Waiting for you to verify… This page continues automatically.",
+    "verifiedTitle": "Email verified ✅",
+    "verifiedText": "Your email is verified. You can close this window and go back to the Bluenova tab — it will continue automatically.",
+    "continueHere": "Or continue in this window",
+    "checkAgain": "I have verified — continue"
   },
   "status": {
     "creator": {
@@ -772,7 +779,8 @@
       "custom": "Invalid value",
       "invalid_literal": "Please accept to continue"
     },
-    "serverDown": "Can't reach the Bluenova server right now. Please try again in a minute."
+    "serverDown": "Can't reach the Bluenova server right now. Please try again in a minute.",
+    "emailNotVerifiedYet": "Your email is not verified yet. Click the link in the email first."
   },
   "footer": {
     "tagline": "Brands અને creators વચ્ચે collaboration માટેનું platform.",

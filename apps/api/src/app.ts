@@ -23,7 +23,7 @@ export function createApp() {
   const app = express();
 
   // Order matters — see docs/BLUENOVA_AI_BUILD_PROMPT.md §13.1
-  app.set('trust proxy', 1);
+  app.set('trust proxy', env.TRUST_PROXY_HOPS);
   app.disable('x-powered-by');
   app.use(requestId);
   app.use(pinoHttp({
@@ -61,7 +61,7 @@ export function createApp() {
   // Public feature flags the frontends need (nothing sensitive).
   api.get('/config', async (_req, res, next) => {
     try {
-      ok(res, { paymentsEnabled: (await getSettings()).paymentsEnabled });
+      ok(res, { paymentsEnabled: (await getSettings()).paymentsEnabled, testMode: env.TEST_MODE });
     } catch (err) {
       next(err);
     }

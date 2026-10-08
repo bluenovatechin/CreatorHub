@@ -5,7 +5,7 @@
  *
  * Creates 8 demo approved creators, a demo admin, and demo bank details for the manual-payment screen.
  */
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server-core';
 
 async function main() {
   if (process.env.NODE_ENV === 'production') throw new Error('dev:memory is for development only');

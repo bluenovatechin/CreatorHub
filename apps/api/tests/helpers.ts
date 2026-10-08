@@ -40,13 +40,17 @@ export function lastEmailToken(to: string): string {
   return msg.link!.split('#token=')[1];
 }
 
-/** Signs up, verifies the email and returns a logged-in session. */
+/**
+ * Signs up, clicks the email link (verification only), then — like the original browser tab —
+ * continues with the signup ticket to get a session.
+ */
 export async function signup(role: 'creator' | 'brand', name = role === 'creator' ? 'Riya Shah' : 'Asha Patel') {
   const email = nextEmail();
   const agent = request.agent(app);
-  await agent.post('/api/v1/auth/signup')
+  const s = await agent.post('/api/v1/auth/signup')
     .send({ name, email, password: PASSWORD, confirmPassword: PASSWORD, role, acceptTerms: true }).expect(201);
-  const res = await agent.post('/api/v1/auth/verify-email').send({ token: lastEmailToken(email) }).expect(200);
+  await request(app).post('/api/v1/auth/verify-email').send({ token: lastEmailToken(email) }).expect(200);
+  const res = await agent.post('/api/v1/auth/signup/continue').send({ ticket: s.body.data.ticket }).expect(200);
   return { agent, token: res.body.data.accessToken as string, email };
 }
 

@@ -8,7 +8,8 @@ import { env } from '../../config/env';
 import { authenticate } from '../../middleware/auth';
 import { originCheck, rateLimits } from '../../middleware/security';
 import { validate } from '../../middleware/validate';
-import { randomCode } from '../../lib/crypto';
+import { z } from 'zod';
+import { randomCode, randomToken } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
 import { h, input, ok } from '../../lib/http';
 import { logger } from '../../lib/logger';
@@ -21,7 +22,7 @@ import { UserModel, type UserDoc } from '../../models/user';
 import { email, emails } from '../../providers/email';
 import {
   checkCredentials, clearLoginFailures, consumeEmailToken, createEmailToken, emailLink, endAllSessions, endSession,
-  hashPassword, refreshSession, startSession, verifyPassword, verifyTotp,
+  hashPassword, peekSignupTicket, refreshSession, startSession, verifyPassword, verifyTotp,
 } from './auth.service';
 
 export const authRouter = Router();
@@ -31,7 +32,17 @@ async function sendSafely(msg: Parameters<typeof email.send>[0]) {
   try {
     await email.send(msg);
   } catch (err) {
-    logger.error({ err }, 'email delivery failed');
+    logger.error({ reason: err instanceof Error ? err.message : String(err) }, 'email delivery failed');
+    if (env.NODE_ENV === 'development' && msg.link) {
+      // Never leave the developer stuck: show why it failed and the link itself.
+      // eslint-disable-next-line no-console
+      console.log([
+        '',
+        `  ⚠️  Email to ${msg.to} could NOT be sent: ${err instanceof Error ? err.message : err}`,
+        `     Link (for testing):  ${msg.link}`,
+        '',
+      ].join('\n'));
+    }
   }
 }
 
@@ -58,9 +69,10 @@ authRouter.post('/signup', rateLimits.signup, validate({ body: signupSchema }), 
   const d = input<SignupInput>(req);
   const existing = await UserModel.findOne({ email: d.email }, { _id: 1 }).lean();
   if (existing) {
-    // Same response as a new signup, so nobody can test which emails are registered.
+    // Same response as a new signup (including a ticket that will simply never verify),
+    // so nobody can test which emails are registered.
     await sendSafely(emails.alreadyRegistered(d.email, `${env.APP_BASE_URL}/login`));
-    return ok(res, { sent: true });
+    return ok(res, { sent: true, ticket: randomToken(32) }, 201);
   }
   const now = new Date();
   const user = await UserModel.create({
@@ -72,11 +84,20 @@ authRouter.post('/signup', rateLimits.signup, validate({ body: signupSchema }), 
     ],
   });
   await createProfile(String(user._id), d.role, d.name);
+  if (env.TEST_MODE) {
+    // Testing without an email service: the account is verified straight away.
+    user.emailVerifiedAt = new Date();
+    await user.save();
+    return ok(res, { sent: true, autoVerified: true }, 201);
+  }
   const token = await createEmailToken(user._id, 'verify_email');
   await sendSafely(emails.verify(d.email, d.name, emailLink('/verify-email', token)));
-  ok(res, { sent: true }, 201);
+  // The signing-up tab keeps this ticket and uses it to continue once the email link has been clicked.
+  const ticket = await createEmailToken(user._id, 'signup_ticket');
+  ok(res, { sent: true, ticket }, 201);
 }));
 
+/** Clicking the email link only marks the email as verified. It does NOT log anyone in. */
 authRouter.post('/verify-email', rateLimits.emailLinks, validate({ body: tokenSchema }), h(async (req, res) => {
   const userId = await consumeEmailToken(input<{ token: string }>(req).token, 'verify_email');
   const user = await UserModel.findById(userId);
@@ -86,8 +107,25 @@ authRouter.post('/verify-email', rateLimits.emailLinks, validate({ body: tokenSc
     await user.save();
     invalidateUser(userId);
   }
+  ok(res, { verified: true });
+}));
+
+/** The signing-up tab asks: has my email been verified yet? */
+authRouter.post('/signup/status', rateLimits.signupStatus, validate({ body: z.object({ ticket: tokenSchema.shape.token }) }), h(async (req, res) => {
+  const userId = await peekSignupTicket(input<{ ticket: string }>(req).ticket);
+  const user = userId ? await UserModel.findById(userId, { emailVerifiedAt: 1, status: 1 }).lean() : null;
+  ok(res, { verified: Boolean(user && user.status === 'active' && user.emailVerifiedAt) });
+}));
+
+/** Once verified, the signing-up tab exchanges its ticket (once) for a session and continues. */
+authRouter.post('/signup/continue', rateLimits.emailLinks, validate({ body: z.object({ ticket: tokenSchema.shape.token }) }), h(async (req, res) => {
+  const { ticket } = input<{ ticket: string }>(req);
+  const userId = await peekSignupTicket(ticket);
+  const user = userId ? await UserModel.findById(userId) : null;
+  if (!user || user.status !== 'active' || !user.emailVerifiedAt) throw new AppError('INVALID_STATE', 'errors.emailNotVerifiedYet');
+  await consumeEmailToken(ticket, 'signup_ticket');
   const accessToken = await startSession(req, res, user, 'user');
-  ok(res, { accessToken, user: await meView(userId) });
+  ok(res, { accessToken, user: await meView(String(user._id)) });
 }));
 
 authRouter.post('/verify-email/resend', rateLimits.emailLinks, validate({ body: emailOnlySchema }), h(async (req, res) => {

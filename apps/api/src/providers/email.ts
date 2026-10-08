@@ -18,7 +18,7 @@ export interface EmailProvider {
 class ConsoleEmailProvider implements EmailProvider {
   readonly sent: EmailMessage[] = [];
   async send(msg: EmailMessage) {
-    if (env.NODE_ENV === 'production') throw new Error('Console email provider cannot be used in production');
+    if (env.NODE_ENV === 'production' && !env.TEST_MODE) throw new Error('Console email provider cannot be used in production');
     if (env.NODE_ENV === 'test') {
       this.sent.push(msg);
       return;
@@ -93,8 +93,17 @@ class ResendEmailProvider implements EmailProvider {
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
-      logger.error({ status: res.status }, 'email send failed');
-      throw new Error('Email send failed');
+      // Resend explains the problem (unverified domain, test-mode recipient limit, bad key…): surface it.
+      const body = (await res.json().catch(() => ({}))) as { message?: string; name?: string };
+      const reason = body.message ?? `HTTP ${res.status}`;
+      logger.error({ status: res.status, reason }, 'Resend email send failed');
+      throw new Error(`Resend refused the email: ${reason}`);
+    }
+    if (env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.log(`
+  ✉️  Email sent to ${msg.to} — ${msg.subject}
+`);
     }
   }
 }
@@ -108,10 +117,11 @@ export const email: EmailProvider =
 const footer = '\n\n— Bluenova Creator Hub\n+91 76002 36644 · bluenovatech.in\nBluenova will never ask for your password.';
 
 export const emails = {
-  verify: (to: string, name: string, link: string): EmailMessage => ({
+  /** Deliberately minimal: only the verification button. Profile details are entered after login. */
+  verify: (to: string, _name: string, link: string): EmailMessage => ({
     to, link,
     subject: 'Verify your email — Bluenova Creator Hub',
-    text: `Hi ${name},\n\nPlease confirm your email address to finish creating your account:\n${link}\n\nતમારું email verify કરવા ઉપરની link ખોલો.\nThis link expires in 24 hours. If you didn't sign up, ignore this email.${footer}`,
+    text: `Please verify your email address.\n${link}\n\nતમારું email verify કરવા button પર click કરો.\n\nThis link expires in 24 hours. If you didn't create an account, you can ignore this email.`,
   }),
   alreadyRegistered: (to: string, link: string): EmailMessage => ({
     to, link,

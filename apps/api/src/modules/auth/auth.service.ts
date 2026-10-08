@@ -87,7 +87,7 @@ export async function checkCredentials(email: string, password: string): Promise
 
 /* ---------------- email links ---------------- */
 
-const LINK_TTL = { verify_email: 24 * 3_600_000, reset_password: 30 * 60_000 } as const;
+const LINK_TTL = { verify_email: 24 * 3_600_000, reset_password: 30 * 60_000, signup_ticket: 60 * 60_000 } as const;
 
 export async function createEmailToken(userId: unknown, purpose: keyof typeof LINK_TTL): Promise<string> {
   // Older unused links for the same purpose stop working.
@@ -105,6 +105,12 @@ export async function consumeEmailToken(raw: string, purpose: keyof typeof LINK_
   );
   if (!doc) throw new AppError('VALIDATION_ERROR', 'errors.linkInvalid');
   return String(doc.userId);
+}
+
+/** Looks up a signup ticket without using it up. Returns the user id, or null. */
+export async function peekSignupTicket(raw: string): Promise<string | null> {
+  const doc = await EmailTokenModel.findOne({ tokenHash: sha256(raw), purpose: 'signup_ticket', usedAt: null, expiresAt: { $gt: new Date() } }).lean();
+  return doc ? String(doc.userId) : null;
 }
 
 /** Links use the URL fragment (#token=…) so the token never reaches server logs or Referer headers. */

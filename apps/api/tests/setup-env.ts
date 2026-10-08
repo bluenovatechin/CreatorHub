@@ -8,3 +8,6 @@ process.env.OTP_PEPPER = 'test-pepper-'.padEnd(40, 'y');
 process.env.DATA_ENCRYPTION_KEYS = JSON.stringify({ v1: Buffer.alloc(32, 7).toString('base64') });
 process.env.DATA_ENCRYPTION_ACTIVE_VERSION = 'v1';
 process.env.SMS_PROVIDER = 'console';
+// Tests must never send real email, whatever apps/api/.env says.
+process.env.EMAIL_PROVIDER = 'console';
+process.env.TEST_MODE = 'false';

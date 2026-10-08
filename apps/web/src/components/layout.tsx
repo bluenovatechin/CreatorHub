@@ -10,6 +10,7 @@ import { Avatar, cx } from '@bluenova/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { setLang, type Lang } from '../lib/i18n';
+import { useAppConfig } from '../lib/config';
 
 export function Logo({ to = '/', light = false }: { to?: string; light?: boolean }) {
   return (
@@ -42,9 +43,17 @@ export function LanguageSwitch({ dark = false }: { dark?: boolean }) {
   );
 }
 
+/** Shown on every page while the live site runs in test mode. */
+function TestBanner() {
+  const { t } = useTranslation();
+  const { testMode } = useAppConfig();
+  if (!testMode) return null;
+  return <div role="note" className="bg-sun px-4 py-1.5 text-center text-xs font-bold text-navy">🧪 {t('common.testBanner')}</div>;
+}
+
 function SkipLink() {
   const { t } = useTranslation();
-  return <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:p-3 focus:shadow-lift">{t('nav.skip')}</a>;
+  return <><TestBanner /><a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:p-3 focus:shadow-lift">{t('nav.skip')}</a></>;
 }
 
 /* ---------------- Public site ---------------- */

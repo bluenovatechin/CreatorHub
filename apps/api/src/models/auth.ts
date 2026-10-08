@@ -23,7 +23,8 @@ export const RefreshTokenModel = model('RefreshToken', refreshTokenSchema);
 const emailTokenSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    purpose: { type: String, enum: ['verify_email', 'reset_password'], required: true },
+    // signup_ticket: held only by the browser tab that signed up; lets that tab continue once the email is verified.
+    purpose: { type: String, enum: ['verify_email', 'reset_password', 'signup_ticket'], required: true },
     tokenHash: { type: String, required: true, unique: true },
     expiresAt: { type: Date, required: true },
     usedAt: Date,

@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Building2, Clapperboard, KeyRound, Lock, Mail, MailCheck, User } from 'lucide-react';
+import { Building2, CheckCircle2, Clapperboard, KeyRound, Lock, Mail, MailCheck, User } from 'lucide-react';
 import { emailOnlySchema, loginSchema, resetPasswordSchema, signupSchema, z, type SignupInput } from '../../lib/zod';
 import { Alert, Button, Checkbox, ChoiceCards, Field, Input, PasswordInput, PasswordStrength, Spinner } from '@bluenova/ui';
 import { ApiError, api, applyServerErrors, errorText, type Me } from '../../lib/api';
@@ -40,6 +40,20 @@ function useHashToken() {
   return token;
 }
 
+/* ---------- signup ticket (kept only in this browser tab) ---------- */
+
+const TICKET_KEY = 'bn_signup';
+function saveTicket(ticket: string | undefined, email: string) {
+  if (!ticket) return;
+  try { sessionStorage.setItem(TICKET_KEY, JSON.stringify({ ticket, email })); } catch { /* storage blocked: the user can still log in */ }
+}
+function readTicket(): { ticket: string; email: string } | null {
+  try { return JSON.parse(sessionStorage.getItem(TICKET_KEY) ?? 'null'); } catch { return null; }
+}
+function clearTicket() {
+  try { sessionStorage.removeItem(TICKET_KEY); } catch { /* ignore */ }
+}
+
 /* ---------- Log in ---------- */
 
 export function LoginPage() {
@@ -50,7 +64,8 @@ export function LoginPage() {
   const { signIn } = useAuth();
   const fe = useFieldError();
   const [error, setError] = useState<{ text: string; tone: 'red' | 'amber' } | null>(
-    (location.state as { resetDone?: boolean } | null)?.resetDone ? { text: t('auth.resetDone'), tone: 'amber' } : null,
+    (location.state as { resetDone?: boolean } | null)?.resetDone ? { text: t('auth.resetDone'), tone: 'amber' }
+      : (location.state as { created?: boolean } | null)?.created ? { text: t('auth.createdLogin'), tone: 'amber' } : null,
   );
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<z.infer<typeof loginSchema>>({ resolver: zodResolver(loginSchema) });
 
@@ -108,8 +123,13 @@ export function SignupPage() {
   const onSubmit = async (v: SignupInput) => {
     setError(null);
     try {
-      await api.post('/auth/signup', v);
-      navigate('/check-email', { state: { email: v.email } });
+      const r = await api.post<{ autoVerified?: boolean; ticket?: string }>('/auth/signup', v);
+      if (r.autoVerified) {
+        navigate('/login', { state: { created: true } });
+      } else {
+        saveTicket(r.ticket, v.email);
+        navigate('/check-email', { state: { email: v.email } });
+      }
     } catch (e) {
       if (!applyServerErrors(e, setFieldError)) setError(errorText(t, e));
     }
@@ -172,8 +192,43 @@ export function SignupPage() {
 export function CheckEmailPage() {
   const { t } = useTranslation();
   const location = useLocation();
-  const email = (location.state as { email?: string } | null)?.email ?? '';
+  const navigate = useNavigate();
+  const { signIn } = useAuth();
+  const saved = readTicket();
+  const email = (location.state as { email?: string } | null)?.email ?? saved?.email ?? '';
   const [state, setState] = useState<'idle' | 'busy' | 'sent'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const continuing = useRef(false);
+
+  // Continue automatically as soon as the email link has been clicked (in any window or device).
+  const tryContinue = async (manual = false) => {
+    const ticket = readTicket()?.ticket;
+    if (!ticket || continuing.current) return;
+    try {
+      const { verified } = await api.post<{ verified: boolean }>('/auth/signup/status', { ticket });
+      if (!verified) {
+        if (manual) setError(t('errors.emailNotVerifiedYet'));
+        return;
+      }
+      continuing.current = true;
+      const res = await api.post<{ accessToken: string; user: Me }>('/auth/signup/continue', { ticket });
+      clearTicket();
+      signIn(res.accessToken, res.user);
+      navigate(postLoginPath(res.user, null), { replace: true });
+    } catch (e) {
+      continuing.current = false;
+      if (manual) setError(errorText(t, e));
+    }
+  };
+
+  useEffect(() => {
+    const id = setInterval(() => void tryContinue(), 4000);
+    const onFocus = () => void tryContinue();
+    window.addEventListener('focus', onFocus);
+    return () => { clearInterval(id); window.removeEventListener('focus', onFocus); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const resend = async () => {
     if (!email) return;
     setState('busy');
@@ -186,8 +241,11 @@ export function CheckEmailPage() {
         <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-soft text-primary"><MailCheck className="h-8 w-8" aria-hidden="true" /></span>
         <h1 className="mt-6 font-display text-3xl font-extrabold text-navy">{t('auth.checkTitle')}</h1>
         <p className="mt-3 text-ink-muted">{t('auth.checkText', { email: email || '…' })}</p>
+        {saved && <p className="mt-5 flex items-center justify-center gap-2 text-sm font-medium text-primary" role="status"><Spinner className="h-4 w-4" />{t('auth.waiting')}</p>}
         <p className="mt-6 text-sm text-ink-muted">{t('auth.checkHint')}</p>
         <div className="mt-6 flex flex-col gap-3">
+          {saved && <Button onClick={() => { setError(null); void tryContinue(true); }}>{t('auth.checkAgain')}</Button>}
+          {error && <Alert tone="amber">{error}</Alert>}
           {email && (state === 'sent'
             ? <Alert tone="green">{t('auth.resent')}</Alert>
             : <Button variant="secondary" loading={state === 'busy'} onClick={resend}>{t('auth.resend')}</Button>)}
@@ -202,32 +260,35 @@ export function CheckEmailPage() {
 
 export function VerifyEmailPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const { signIn } = useAuth();
   const token = useHashToken();
   const started = useRef(false);
-  const [failed, setFailed] = useState(false);
+  const [result, setResult] = useState<'pending' | 'ok' | 'failed'>('pending');
 
   useEffect(() => {
     if (started.current) return; // links are single-use: never send twice
     started.current = true;
-    if (!token) { setFailed(true); return; }
-    api.post<{ accessToken: string; user: Me }>('/auth/verify-email', { token })
-      .then((res) => { signIn(res.accessToken, res.user); navigate(postLoginPath(res.user, null), { replace: true }); })
-      .catch(() => setFailed(true));
-  }, [token, signIn, navigate]);
+    if (!token) { setResult('failed'); return; }
+    api.post('/auth/verify-email', { token }).then(() => setResult('ok')).catch(() => setResult('failed'));
+  }, [token]);
 
   return (
     <AuthLayout>
       <div className="text-center">
-        {failed ? (
+        {result === 'pending' && <div className="flex flex-col items-center gap-4 text-ink-muted"><Spinner className="h-8 w-8 text-primary" />{t('auth.verifying')}</div>}
+        {result === 'ok' && (
+          <>
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success-soft text-success"><CheckCircle2 className="h-8 w-8" aria-hidden="true" /></span>
+            <h1 className="mt-6 font-display text-3xl font-extrabold text-navy">{t('auth.verifiedTitle')}</h1>
+            <p className="mt-3 text-ink-muted">{t('auth.verifiedText')}</p>
+            <Link to="/login" className="mt-8 inline-block text-sm font-semibold text-primary hover:underline">{t('auth.continueHere')}</Link>
+          </>
+        )}
+        {result === 'failed' && (
           <>
             <h1 className="font-display text-2xl font-extrabold text-navy">{t('auth.verifyFail')}</h1>
             <p className="mt-2 text-ink-muted">{t('auth.verifyFailText')}</p>
             <Link to="/login" className="mt-6 inline-flex min-h-12 items-center rounded-ctl bg-primary px-6 font-semibold text-white">{t('auth.login')}</Link>
           </>
-        ) : (
-          <div className="flex flex-col items-center gap-4 text-ink-muted"><Spinner className="h-8 w-8 text-primary" />{t('auth.verifying')}</div>
         )}
       </div>
     </AuthLayout>

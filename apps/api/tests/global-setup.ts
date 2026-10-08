@@ -1,4 +1,4 @@
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server-core';
 import type { GlobalSetupContext } from 'vitest/node';
 
 let replSet: MongoMemoryReplSet;

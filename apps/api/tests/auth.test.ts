@@ -43,16 +43,37 @@ describe('signup and email verification', () => {
     expect(login.body.error.message).toBe('errors.emailNotVerified');
     const token = lastEmailToken(email);
     const v = await request(app).post('/api/v1/auth/verify-email').send({ token }).expect(200);
-    expect(v.body.data.accessToken).toBeTruthy();
+    expect(v.body.data).toEqual({ verified: true }); // verifies only — no login from the email link
+    expect(v.headers['set-cookie']).toBeUndefined();
+    expect((await UserModel.findOne({ email }).lean())!.emailVerifiedAt).toBeTruthy(); // stored in the database
     await request(app).post('/api/v1/auth/verify-email').send({ token }).expect(400); // single use
     await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(200);
   });
 
+  it('lets only the signing-up tab continue, and only after the email is verified', async () => {
+    const email = nextEmail();
+    const s = await request(app).post('/api/v1/auth/signup').send(signupBody(email)).expect(201);
+    const ticket = s.body.data.ticket as string;
+    expect((await request(app).post('/api/v1/auth/signup/status').send({ ticket })).body.data.verified).toBe(false);
+    await request(app).post('/api/v1/auth/signup/continue').send({ ticket }).expect(409); // not verified yet
+    await request(app).post('/api/v1/auth/verify-email').send({ token: lastEmailToken(email) }).expect(200);
+    expect((await request(app).post('/api/v1/auth/signup/status').send({ ticket })).body.data.verified).toBe(true);
+    const c = await request(app).post('/api/v1/auth/signup/continue').send({ ticket }).expect(200);
+    await request(app).get('/api/v1/me').set(bearer(c.body.data.accessToken)).expect(200);
+    await request(app).post('/api/v1/auth/signup/continue').send({ ticket }).expect(409); // single use
+    // A made-up ticket never verifies.
+    const fake = 'A'.repeat(43);
+    expect((await request(app).post('/api/v1/auth/signup/status').send({ ticket: fake })).body.data.verified).toBe(false);
+  });
+
   it('does not reveal whether an email is already registered', async () => {
     const { email } = await signup('creator');
+    const fresh = await request(app).post('/api/v1/auth/signup').send(signupBody(nextEmail()));
     const r = await request(app).post('/api/v1/auth/signup').send(signupBody(email));
-    expect(r.status).toBe(200);
-    expect(r.body).toEqual({ data: { sent: true } });
+    expect(r.status).toBe(fresh.status);
+    expect(Object.keys(r.body.data).sort()).toEqual(Object.keys(fresh.body.data).sort());
+    // The ticket handed out for an existing email can never be used.
+    expect((await request(app).post('/api/v1/auth/signup/status').send({ ticket: r.body.data.ticket })).body.data.verified).toBe(false);
     expect(consoleEmail.sent.at(-1)!.subject).toMatch(/already have/); // the real owner gets a heads-up email
   });
 });

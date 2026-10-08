@@ -1,0 +1,54 @@
+# Render Blueprint for the Bluenova API.
+# Render → New → Blueprint → pick this repository. You will be asked for the two values marked "sync: false".
+services:
+  - type: web
+    name: bluenova-api
+    runtime: node
+    region: singapore          # closest Render region to India
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build -w @bluenova/api
+    startCommand: npm run start -w @bluenova/api
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      # Paste from apps/api/.env on your computer:
+      - key: MONGODB_URI
+        sync: false
+      # Paste from apps/api/.env — must be the SAME value as on your computer (it decrypts admin security keys):
+      - key: DATA_ENCRYPTION_KEYS
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      # The two Vercel website addresses (change here if Vercel gives you different names):
+      - key: CORS_ORIGINS
+        value: https://bluenova-creatorhub.vercel.app,https://bluenova-admin.vercel.app
+      - key: APP_BASE_URL
+        value: https://bluenova-creatorhub.vercel.app
+      - key: ADMIN_BASE_URL
+        value: https://bluenova-admin.vercel.app
+      # Visitors reach the API through Vercel, then Render: 2 proxies.
+      - key: TRUST_PROXY_HOPS
+        value: "2"
+      # ── Email & test mode: set these in Render → Environment (they are NOT overwritten on deploy) ──
+      # Testing without email: TEST_MODE=true, EMAIL_PROVIDER=console.
+      # With Resend (after verifying bluenovatech.in at resend.com/domains):
+      #   EMAIL_PROVIDER=resend, RESEND_API_KEY=re_..., EMAIL_FROM=Bluenova Creator Hub <no-reply@bluenovatech.in>, TEST_MODE=false
+      - key: TEST_MODE
+        sync: false
+      - key: EMAIL_PROVIDER
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      # Gmail sending (EMAIL_PROVIDER=smtp): the Gmail address and its 16-letter App password
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
