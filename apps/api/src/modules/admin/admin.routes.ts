@@ -25,6 +25,8 @@ import { DealModel, OfferModel } from '../../models/deal';
 import { AuditLogModel, getSettings } from '../../models/system';
 import { PaymentModel } from '../../models/payment';
 import { UserModel } from '../../models/user';
+import { env } from '../../config/env';
+import { email } from '../../providers/email';
 import { notificationsRouter } from '../deals/deals.routes';
 import { adminPaymentsRouter } from '../payments/payments.routes';
 import { adminUsersRouter } from './users.routes';
@@ -278,4 +280,33 @@ adminRouter.get('/audit-logs', requireAdmin('super_admin'), validate({ query: pa
     adminRole: a.adminRole ?? null, action: a.action, entityType: a.entityType, entityId: a.entityId ? String(a.entityId) : null,
     changes: a.changes ?? null, reason: a.reason ?? null, ip: a.ip ?? null, createdAt: a.createdAt,
   })), 200, { nextCursor });
+}));
+
+/* ---------- email check (super admin) ---------- */
+
+/**
+ * POST /admin/settings/test-email: sends ONE email to the logged-in super admin, from THIS server, and waits
+ * for the answer (normal emails are sent in the background, so their errors only appear in the server log).
+ * Shows the exact reason when sending fails (e.g. Brevo "unrecognised IP address", unverified sender,
+ * or SMTP blocked on Render's free plan). Used by admin Settings → "Email delivery".
+ */
+adminRouter.post('/settings/test-email', requireAdmin('super_admin'), h(async (req, res) => {
+  const me = await UserModel.findById(req.auth!.id, { email: 1 }).lean();
+  if (!me) throw notFound();
+  const setup = { provider: env.EMAIL_PROVIDER, from: env.EMAIL_FROM, testMode: env.TEST_MODE, to: me.email };
+  let reason: string | null = null;
+  try {
+    await email.send({
+      to: me.email,
+      subject: 'Bluenova test email (from the live server)',
+      text: `This test email was sent by the Bluenova API.
+Email mode: ${env.EMAIL_PROVIDER}
+
+If you can read this, signup codes and password emails will be delivered too.`,
+    });
+  } catch (err) {
+    reason = err instanceof Error ? err.message : String(err);
+  }
+  await audit(req, 'settings.test_email', 'Settings', undefined, { changes: { provider: env.EMAIL_PROVIDER, sent: !reason } });
+  ok(res, { sent: !reason, reason, ...setup });
 }));

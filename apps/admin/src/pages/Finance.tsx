@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, KeyRound, Landmark, Lock, ToggleRight, Wallet, XCircle } from 'lucide-react';
+import { CheckCircle2, KeyRound, Landmark, Lock, Mail, ToggleRight, Wallet, XCircle } from 'lucide-react';
 import {
   Alert, Badge, Button, Card, CardHeader, Dialog, EmptyState, Field, Input, Loading, PageHeader, PasswordInput,
   PasswordStrength, Textarea, cx,
@@ -174,6 +174,51 @@ function ChangePasswordCard() {
   );
 }
 
+interface EmailCheck { sent: boolean; reason: string | null; provider: string; from: string; testMode: boolean; to: string }
+
+/** Plain-English fix for the most common email failures (the raw reason is shown too). */
+function emailFix(r: EmailCheck): string | null {
+  const why = (r.reason ?? '').toLowerCase();
+  if (r.provider === 'console') return r.testMode
+    ? 'TEST_MODE is on: emails are not really sent (they only appear in the server log). On Render set EMAIL_PROVIDER=brevo and TEST_MODE=false.'
+    : 'EMAIL_PROVIDER is "console", so nothing is really sent. On Render set EMAIL_PROVIDER=brevo.';
+  if (!r.sent && r.provider === 'smtp') return "Render's free plan blocks Gmail/SMTP. On Render set EMAIL_PROVIDER=brevo, BREVO_API_KEY and EMAIL_FROM.";
+  if (why.includes('ip address') || why.includes('unrecognised ip')) return "Brevo is blocking this server's IP address. Brevo → ⚙️ → Security → Authorized IPs → deactivate the blocking (Render's IP address changes).";
+  if (why.includes('sender') || why.includes('from')) return `Brevo doesn't accept the sender "${r.from}". Set EMAIL_FROM on Render to the exact email shown as Verified in Brevo → ⚙️ → Senders.`;
+  if (why.includes('key') || why.includes('unauthorized') || why.includes('401')) return 'The Brevo API key is wrong or deleted. Create a new one in Brevo → ⚙️ → SMTP & API → API Keys and set BREVO_API_KEY on Render.';
+  if (why.includes('not yet activated') || why.includes('activat') || why.includes('phone')) return 'Your Brevo account is not activated for sending yet (verify your phone in Brevo, or contact Brevo support).';
+  return null;
+}
+
+/** Sends one real email from THIS server to the super admin and shows exactly what happened. */
+function EmailCheckCard() {
+  const [result, setResult] = useState<EmailCheck | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const check = useMutation({
+    mutationFn: () => api.post<EmailCheck>('/admin/settings/test-email'),
+    onMutate: () => { setError(null); setResult(null); },
+    onSuccess: (r) => setResult(r),
+    onError: (e) => setError(errorText(e)),
+  });
+  const fix = result ? emailFix(result) : null;
+  return (
+    <Card>
+      <CardHeader icon={<Mail />} title="Email delivery"
+        subtitle="Signup codes and password emails. Press the button to send one test email to your own address from this server." />
+      <Button size="sm" variant="secondary" loading={check.isPending} onClick={() => check.mutate()}>Send test email</Button>
+      {result && (
+        <div className="mt-4 space-y-3 text-sm">
+          <p className="text-ink-muted">Mode: <b>{result.provider}</b> · From: <b>{result.from}</b> · To: <b>{result.to}</b>{result.testMode ? ' · TEST_MODE on' : ''}</p>
+          {result.sent && result.provider !== 'console'
+            ? <Alert tone="green" title="Sent">Check {result.to} (and the spam folder) within a minute. If it arrives, signup codes work too.</Alert>
+            : <Alert tone="red" title="Not delivered">{result.reason ? <p className="break-words">Reason: {result.reason}</p> : null}{fix ? <p className="mt-2 font-semibold">How to fix: {fix}</p> : null}</Alert>}
+        </div>
+      )}
+      {error && <div className="mt-3"><Alert tone="red">{error}</Alert></div>}
+    </Card>
+  );
+}
+
 function FeaturesCard() {
   const { me } = useAdmin();
   const { paymentsEnabled, loaded } = useFeatures();
@@ -212,6 +257,7 @@ export function SettingsPage() {
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader title="Settings" subtitle={`${me?.name} · ${me?.email}`} />
       <FeaturesCard />
+      {me?.adminRole === 'super_admin' && <EmailCheckCard />}
       {paymentsEnabled && <BankDetailsCard />}
       <ChangePasswordCard />
     </div>

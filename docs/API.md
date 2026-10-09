@@ -143,6 +143,7 @@
 | `POST /admin/users/:id/password` | **super_admin** | `{password, reason}`: set a new password, log out everywhere | "Set new password" dialog |
 | `POST /admin/users/:id/status` | **super_admin** | `{status:'active'\|'suspended', reason}` | "Suspend / Re-activate" dialog |
 | `GET /admin/audit-logs` | **super_admin** | Audit trail | `AuditLogPage` |
+| `POST /admin/settings/test-email` | **super_admin** | Sends one email to yourself from this server and returns `{sent, reason, provider, from}` | Settings → "Email delivery" |
 | `GET /admin/settings/features` | any | Is payments ON? | menu, Settings |
 | `PUT /admin/settings/features` | **super_admin** | `{paymentsEnabled}` | `SettingsPage` (Finance.tsx) |
 | `GET /admin/payments?status=` | finance, campaign_manager (payments ON) | Payments list | `PaymentsPage` |

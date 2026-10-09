@@ -65,6 +65,10 @@ Render's **free plan blocks email ports**, so Gmail/Nodemailer (SMTP) works on y
 
 Test locally with `npm run email:test -- --to you@example.com`.
 
+**Checking the live site:** Admin panel → **Settings → Email delivery → Send test email**. It sends from the live server and shows Brevo's exact answer, plus how to fix it. Render's log also prints one `email settings` line at startup (provider, sender, test mode).
+
+**Importing all settings at once:** `apps/api/.env.render` (git-ignored, secret) holds every production variable, built from your working local `.env`. In Render → Environment → **Add from .env**, paste its contents → **Save Changes**.
+
 ## 5. Continue with Google
 1. In Google Cloud Console → **Google Auth Platform**:
    - set up the app (External);

@@ -57,6 +57,8 @@ async function main() {
 
   await connectWithRetry();
   startScheduler(); // background jobs need the database
+  // One line in Render's log showing how emails will be sent (no secrets), to make email problems easy to spot.
+  logger.info({ emailProvider: env.EMAIL_PROVIDER, emailFrom: env.EMAIL_FROM, testMode: env.TEST_MODE }, 'email settings');
   if (env.NODE_ENV === 'development') {
     // eslint-disable-next-line no-console
     console.log([
