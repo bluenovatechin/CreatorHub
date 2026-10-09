@@ -242,7 +242,18 @@
     "verifiedTitle": "Email verify થઈ ગયું ✅",
     "verifiedText": "તમારું email verify થઈ ગયું છે. આ window બંધ કરી Bluenova વાળા tab પર પાછા જાઓ — તે આપમેળે આગળ વધશે.",
     "continueHere": "અથવા આ window માં આગળ વધો",
-    "checkAgain": "મેં verify કરી દીધું — આગળ વધો"
+    "checkAgain": "મેં verify કરી દીધું — આગળ વધો",
+    "otpTitle": "તમારું email verify કરો",
+    "otpText": "અમે {{email}} પર 6-digit code મોકલ્યો છે. પૂર્ણ કરવા તે નીચે લખો.",
+    "otpLabel": "Verification code",
+    "otpVerify": "Verify કરો અને આગળ વધો",
+    "otpResend": "Code ફરી મોકલો",
+    "otpResendIn": "{{s}} સેકન્ડમાં code ફરી મોકલી શકશો",
+    "otpResent": "નવો code મોકલાઈ રહ્યો છે.",
+    "changeEmail": "Email બદલો",
+    "otpSpam": "મળતો નથી? Spam folder ચેક કરો. Code 10 મિનિટમાં expire થશે.",
+    "or": "અથવા",
+    "googleTerms": "Google થી આગળ વધીને તમે અમારી Terms of Use અને Privacy Policy સ્વીકારો છો."
   },
   "status": {
     "creator": {
@@ -782,7 +793,14 @@
     "serverDown": "હાલ Bluenova server સુધી પહોંચી શકાતું નથી. એક મિનિટ પછી ફરી પ્રયાસ કરો.",
     "emailNotVerifiedYet": "તમારું email હજુ verify નથી થયું. પહેલા email માંની link પર click કરો.",
     "linkUsed": "આ link પહેલેથી વપરાઈ ગઈ છે, અથવા નવા email એ તેને બદલી નાખી છે. સૌથી નવા email ની link વાપરો, અથવા નવી link માંગો.",
-    "linkExpired": "આ link expire થઈ ગઈ છે. નવી link માંગો."
+    "linkExpired": "આ link expire થઈ ગઈ છે. નવી link માંગો.",
+    "otpInvalid": "Code ખોટો છે. Email ચેક કરીને ફરી પ્રયાસ કરો.",
+    "otpExpired": "આ code expire થઈ ગયો છે અથવા બદલાઈ ગયો છે. નવા code માટે \"Code ફરી મોકલો\" દબાવો.",
+    "otpTooMany": "ઘણા ખોટા પ્રયાસ. નવા code માટે \"Code ફરી મોકલો\" દબાવો.",
+    "otpCooldown": "બીજો code માંગતા પહેલા એક મિનિટ રાહ જુઓ.",
+    "googleFailed": "Google sign-in નિષ્ફળ થયું. ફરી પ્રયાસ કરો.",
+    "googleNotVerified": "આ Google account નું email verify થયેલું નથી.",
+    "googleNotConfigured": "Google sign-in હજુ ઉપલબ્ધ નથી."
   },
   "footer": {
     "tagline": "Brands અને creators વચ્ચે collaboration માટેનું platform.",

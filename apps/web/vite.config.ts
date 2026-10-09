@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Dev API target: the deployed Render API by default; set API_PROXY_TARGET=http://localhost:4000 to use a local API.
-const apiTarget = process.env.API_PROXY_TARGET ?? 'https://bluenova-api.onrender.com';
+// Dev API target: your local API (npm run dev starts it on :4000).
+// To try the deployed API instead: API_PROXY_TARGET=https://bluenova-api.onrender.com npm run dev:web
+const apiTarget = process.env.API_PROXY_TARGET ?? 'http://localhost:4000';
 const remote = !apiTarget.includes('localhost');
 
 export default defineConfig({

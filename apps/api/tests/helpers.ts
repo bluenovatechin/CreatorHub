@@ -40,17 +40,20 @@ export function lastEmailToken(to: string): string {
   return msg.link!.split('#token=')[1];
 }
 
-/**
- * Signs up, clicks the email link (verification only), then — like the original browser tab —
- * continues with the signup ticket to get a session.
- */
+/** The 6-digit code from the most recent code email sent to an address (dev/test email provider). */
+export function lastEmailCode(to: string): string {
+  const msg = [...consoleEmail.sent].reverse().find((m) => m.to === to && m.code);
+  if (!msg) throw new Error(`no code email for ${to}`);
+  return msg.code!;
+}
+
+/** Signs up, types the emailed 6-digit code on the same page and gets a session (straight to the dashboard). */
 export async function signup(role: 'creator' | 'brand', name = role === 'creator' ? 'Riya Shah' : 'Asha Patel') {
   const email = nextEmail();
   const agent = request.agent(app);
   const s = await agent.post('/api/v1/auth/signup')
     .send({ name, email, password: PASSWORD, confirmPassword: PASSWORD, role, acceptTerms: true }).expect(201);
-  await request(app).post('/api/v1/auth/verify-email').send({ token: lastEmailToken(email) }).expect(200);
-  const res = await agent.post('/api/v1/auth/signup/continue').send({ ticket: s.body.data.ticket }).expect(200);
+  const res = await agent.post('/api/v1/auth/signup/verify-otp').send({ ticket: s.body.data.ticket, code: lastEmailCode(email) }).expect(200);
   return { agent, token: res.body.data.accessToken as string, email };
 }
 

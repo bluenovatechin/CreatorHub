@@ -10,7 +10,8 @@ const userSchema = new Schema(
     name: { type: String, required: true, maxlength: 60 },
     email: { type: String, required: true, lowercase: true, trim: true }, // login identifier
     emailVerifiedAt: Date,
-    passwordHash: { type: String, select: false },
+    passwordHash: { type: String, select: false }, // empty for Google-only accounts
+    googleId: { type: String }, // Google account id ("sub") when the user signs in with Google
     passwordChangedAt: Date,
     phone: { type: String }, // optional contact number (E.164); not used for login
     status: { type: String, enum: ['active', 'suspended', 'deletion_pending', 'deleted'], default: 'active' },
@@ -32,6 +33,7 @@ const userSchema = new Schema(
   { timestamps: true },
 );
 userSchema.index({ email: 1 }, { unique: true, partialFilterExpression: { email: { $type: 'string' } } });
+userSchema.index({ googleId: 1 }, { unique: true, partialFilterExpression: { googleId: { $type: 'string' } } });
 userSchema.index({ role: 1, adminRole: 1 });
 
 export type User = InferSchemaType<typeof userSchema>;

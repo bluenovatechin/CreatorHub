@@ -51,7 +51,7 @@ export const rateLimits = {
   signup: limiter(60 * 60_000, 10, 'signup'),
   login: limiter(15 * 60_000, 30, 'login'),
   emailLinks: limiter(60 * 60_000, 20, 'email-links'),
-  signupStatus: limiter(60_000, 30, 'signup-status'), // the waiting tab checks every few seconds
+  otpVerify: limiter(15 * 60_000, 30, 'otp-verify'),
   refresh: limiter(60_000, 30, 'refresh'),
   authed: limiter(60_000, 120, 'authed'),
 };

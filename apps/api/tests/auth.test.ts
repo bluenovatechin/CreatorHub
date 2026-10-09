@@ -1,12 +1,13 @@
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { authenticator } from 'otplib';
 import { RefreshTokenModel } from '../src/models/auth';
 import { AuditLogModel } from '../src/models/system';
 import { UserModel } from '../src/models/user';
 import { verifyTotp } from '../src/modules/auth/auth.service';
 import { consoleEmail } from '../src/providers/email';
-import { ADMIN_ORIGIN, ORIGIN, PASSWORD, app, bearer, lastEmailToken, loginAdmin, nextEmail, signup, useDatabase } from './helpers';
+import { setGoogleVerifierForTests } from '../src/providers/google';
+import { ADMIN_ORIGIN, ORIGIN, PASSWORD, app, bearer, lastEmailCode, lastEmailToken, loginAdmin, nextEmail, signup, useDatabase } from './helpers';
 
 useDatabase('auth_tests');
 
@@ -33,37 +34,83 @@ describe('signup and email verification', () => {
     expect(await bad({ acceptTerms: false })).toHaveProperty('acceptTerms');
   });
 
-  it('requires email verification before login, and verification links work once', async () => {
+  it('verifies the email with a 6-digit code on the same page, then goes straight in', async () => {
     const email = nextEmail();
-    await request(app).post('/api/v1/auth/signup').send(signupBody(email)).expect(201);
+    const s = await request(app).post('/api/v1/auth/signup').send(signupBody(email)).expect(201);
+    expect(s.body.data.otpSent).toBe(true);
     const user = await UserModel.findOne({ email }).select('+passwordHash').lean();
     expect(user!.passwordHash).toMatch(/^\$argon2id\$/); // never stored in plain text
-    const login = await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD });
-    expect(login.status).toBe(403);
-    expect(login.body.error.message).toBe('errors.emailNotVerified');
-    const token = lastEmailToken(email);
-    const v = await request(app).post('/api/v1/auth/verify-email').send({ token }).expect(200);
-    expect(v.body.data).toEqual({ verified: true }); // verifies only — no login from the email link
-    expect(v.headers['set-cookie']).toBeUndefined();
-    expect((await UserModel.findOne({ email }).lean())!.emailVerifiedAt).toBeTruthy(); // stored in the database
-    await request(app).post('/api/v1/auth/verify-email').send({ token }).expect(400); // single use
-    await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(200);
+    expect(user!.emailVerifiedAt).toBeFalsy();
+    const code = lastEmailCode(email);
+    expect(code).toMatch(/^\d{6}$/);
+    const wrong = code === '000000' ? '111111' : '000000';
+    const bad = await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: s.body.data.ticket, code: wrong }).expect(400);
+    expect(bad.body.error.message).toBe('errors.otpInvalid');
+    const ok = await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: s.body.data.ticket, code }).expect(200);
+    expect(ok.body.data.user.role).toBe('creator'); // the frontend sends them to their dashboard
+    await request(app).get('/api/v1/me').set(bearer(ok.body.data.accessToken)).expect(200);
+    expect((await UserModel.findOne({ email }).lean())!.emailVerifiedAt).toBeTruthy(); // stored as verified
+    // Code and ticket are single use.
+    await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: s.body.data.ticket, code }).expect(400);
+    // From now on it's a normal login, no code needed.
+    const login = await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(200);
+    expect(login.body.data.accessToken).toBeTruthy();
   });
 
-  it('lets only the signing-up tab continue, and only after the email is verified', async () => {
+  it('locks a code after 5 wrong tries, rate-limits resends, and a new code works', async () => {
     const email = nextEmail();
     const s = await request(app).post('/api/v1/auth/signup').send(signupBody(email)).expect(201);
     const ticket = s.body.data.ticket as string;
-    expect((await request(app).post('/api/v1/auth/signup/status').send({ ticket })).body.data.verified).toBe(false);
-    await request(app).post('/api/v1/auth/signup/continue').send({ ticket }).expect(409); // not verified yet
-    await request(app).post('/api/v1/auth/verify-email').send({ token: lastEmailToken(email) }).expect(200);
-    expect((await request(app).post('/api/v1/auth/signup/status').send({ ticket })).body.data.verified).toBe(true);
-    const c = await request(app).post('/api/v1/auth/signup/continue').send({ ticket }).expect(200);
-    await request(app).get('/api/v1/me').set(bearer(c.body.data.accessToken)).expect(200);
-    await request(app).post('/api/v1/auth/signup/continue').send({ ticket }).expect(409); // single use
-    // A made-up ticket never verifies.
-    const fake = 'A'.repeat(43);
-    expect((await request(app).post('/api/v1/auth/signup/status').send({ ticket: fake })).body.data.verified).toBe(false);
+    const code = lastEmailCode(email);
+    const wrong = code === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 5; i++) await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket, code: wrong }).expect(400);
+    const locked = await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket, code }).expect(400);
+    expect(locked.body.error.message).toBe('errors.otpTooMany');
+    await request(app).post('/api/v1/auth/signup/resend-otp').send({ ticket }).expect(429); // within a minute
+    const { EmailTokenModel } = await import('../src/models/auth');
+    await EmailTokenModel.collection.updateMany({ purpose: 'verify_otp' }, { $set: { createdAt: new Date(Date.now() - 120_000) } });
+    await request(app).post('/api/v1/auth/signup/resend-otp').send({ ticket }).expect(200);
+    const fresh = lastEmailCode(email);
+    await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket, code: fresh }).expect(200);
+  });
+
+  it('a second tab (login before verifying) does not break the signup tab', async () => {
+    const email = nextEmail();
+    const s = await request(app).post('/api/v1/auth/signup').send(signupBody(email)).expect(201);
+    const login = await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(200);
+    expect(login.body.data.needsVerification).toBe(true);
+    // Within a minute no second email: the first code is still the one to type, in either tab.
+    await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: s.body.data.ticket, code: lastEmailCode(email) }).expect(200);
+    // Once verified, the other tab's ticket is closed.
+    await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: login.body.data.ticket, code: lastEmailCode(email) }).expect(400);
+  });
+
+  it('signing up again before verifying sends a fresh code, and the new details apply only after the code', async () => {
+    const email = nextEmail();
+    await request(app).post('/api/v1/auth/signup').send(signupBody(email)).expect(201);
+    const { EmailTokenModel } = await import('../src/models/auth');
+    await EmailTokenModel.collection.updateMany({ purpose: 'verify_otp' }, { $set: { createdAt: new Date(Date.now() - 120_000) } });
+    const NEW_PASSWORD = 'Monsoon-Vadodara-42';
+    const again = await request(app).post('/api/v1/auth/signup')
+      .send(signupBody(email, { name: 'Asha Patel', role: 'brand', password: NEW_PASSWORD, confirmPassword: NEW_PASSWORD })).expect(201);
+    // Not applied yet: the first password still applies (and the account still needs verifying).
+    await request(app).post('/api/v1/auth/login').send({ email, password: NEW_PASSWORD }).expect(401);
+    const ok = await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: again.body.data.ticket, code: lastEmailCode(email) }).expect(200);
+    expect(ok.body.data.user.role).toBe('brand');
+    expect(ok.body.data.user.name).toBe('Asha Patel');
+    await request(app).post('/api/v1/auth/login').send({ email, password: NEW_PASSWORD }).expect(200);
+    await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(401);
+  });
+
+  it('an unverified account that logs in gets a code on the login page', async () => {
+    const email = nextEmail();
+    await request(app).post('/api/v1/auth/signup').send(signupBody(email)).expect(201);
+    const { EmailTokenModel } = await import('../src/models/auth');
+    await EmailTokenModel.collection.updateMany({ purpose: 'verify_otp' }, { $set: { createdAt: new Date(Date.now() - 120_000) } });
+    const login = await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(200);
+    expect(login.body.data.needsVerification).toBe(true);
+    expect(login.body.data.accessToken).toBeUndefined(); // no session until the code is entered
+    await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: login.body.data.ticket, code: lastEmailCode(email) }).expect(200);
   });
 
   it('does not reveal whether an email is already registered', async () => {
@@ -72,9 +119,47 @@ describe('signup and email verification', () => {
     const r = await request(app).post('/api/v1/auth/signup').send(signupBody(email));
     expect(r.status).toBe(fresh.status);
     expect(Object.keys(r.body.data).sort()).toEqual(Object.keys(fresh.body.data).sort());
+    expect(consoleEmail.sent.at(-1)!.subject).toMatch(/already have/); // the real owner gets a heads-up, not a code
     // The ticket handed out for an existing email can never be used.
-    expect((await request(app).post('/api/v1/auth/signup/status').send({ ticket: r.body.data.ticket })).body.data.verified).toBe(false);
-    expect(consoleEmail.sent.at(-1)!.subject).toMatch(/already have/); // the real owner gets a heads-up email
+    await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: r.body.data.ticket, code: '123456' }).expect(400);
+  });
+});
+
+describe('continue with Google', () => {
+  const fakeGoogle = (identity: { sub: string; email: string; emailVerified?: boolean; name?: string }) =>
+    setGoogleVerifierForTests(async () => ({ name: 'Google User', emailVerified: true, ...identity }));
+  const credential = 'g'.repeat(200);
+  afterEach(() => setGoogleVerifierForTests(null));
+
+  it('creates a verified account with the chosen role and signs in', async () => {
+    const email = nextEmail();
+    fakeGoogle({ sub: 'google-1', email, name: 'Meera Joshi' });
+    const r = await request(app).post('/api/v1/auth/google').send({ credential, role: 'brand' }).expect(200);
+    expect(r.body.data.user.role).toBe('brand');
+    const u = await UserModel.findOne({ email }).lean();
+    expect(u!.emailVerifiedAt).toBeTruthy();
+    expect(u!.googleId).toBe('google-1');
+    // Signing in again finds the same account.
+    const again = await request(app).post('/api/v1/auth/google').send({ credential }).expect(200);
+    expect(again.body.data.user.id).toBe(r.body.data.user.id);
+  });
+
+  it('links Google to an existing email account, and rejects unverified Google emails and admins', async () => {
+    const { email } = await signup('creator');
+    fakeGoogle({ sub: 'google-2', email });
+    const r = await request(app).post('/api/v1/auth/google').send({ credential }).expect(200);
+    expect(r.body.data.user.role).toBe('creator');
+    fakeGoogle({ sub: 'google-3', email: nextEmail(), emailVerified: false });
+    await request(app).post('/api/v1/auth/google').send({ credential }).expect(403);
+    const admin = await loginAdmin('reviewer');
+    fakeGoogle({ sub: 'google-4', email: admin.email });
+    await request(app).post('/api/v1/auth/google').send({ credential }).expect(401);
+  });
+
+  it('a new Google user without a role is sent to choose one', async () => {
+    fakeGoogle({ sub: 'google-5', email: nextEmail() });
+    const r = await request(app).post('/api/v1/auth/google').send({ credential }).expect(200);
+    expect(r.body.data.user.role).toBeNull();
   });
 });
 

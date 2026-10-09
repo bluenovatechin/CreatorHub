@@ -24,10 +24,16 @@ const emailTokenSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     // signup_ticket: held only by the browser tab that signed up; lets that tab continue once the email is verified.
-    purpose: { type: String, enum: ['verify_email', 'reset_password', 'signup_ticket'], required: true },
+    // verify_otp: 6-digit email code (codeHash + attempts). signup_ticket: held only by the browser tab that signed up.
+    purpose: { type: String, enum: ['verify_email', 'reset_password', 'signup_ticket', 'verify_otp'], required: true },
     tokenHash: { type: String, required: true, unique: true },
     expiresAt: { type: Date, required: true },
     usedAt: Date,
+    codeHash: String, // verify_otp only: HMAC of the 6-digit code
+    attempts: { type: Number, default: 0 }, // verify_otp only
+    // signup_ticket only: details from a repeated, unfinished signup. Applied only after the emailed code is entered,
+    // so whoever proves they own the inbox ends up with the password THEY chose.
+    pending: { type: new Schema({ name: String, role: String, passwordHash: String }, { _id: false }), default: undefined },
   },
   { timestamps: true },
 );

@@ -8,6 +8,8 @@ export interface EmailMessage {
   text: string;
   /** Main link in the email, shown in the development terminal. */
   link?: string;
+  /** One-time code shown large in the email (and in the development terminal). */
+  code?: string;
 }
 
 export interface EmailProvider {
@@ -27,7 +29,7 @@ class ConsoleEmailProvider implements EmailProvider {
     console.log([
       '',
       `  ✉️  Email to ${msg.to} — ${msg.subject}`,
-      msg.link ? `     Open this link:  ${msg.link}` : `     ${msg.text.split('\n')[0]}`,
+      msg.code ? `     Code:  ${msg.code}` : msg.link ? `     Open this link:  ${msg.link}` : `     ${msg.text.split('\n')[0]}`,
       '',
     ].join('\n'));
   }
@@ -56,11 +58,14 @@ export function renderHtml(msg: EmailMessage): string {
     ? `<p style="margin:22px 0"><a href="${escapeHtml(msg.link)}" style="background:#1647D8;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600;display:inline-block">${escapeHtml(BUTTON_LABEL[path] ?? 'Open')}</a></p>
        <p style="margin:0 0 14px;font-size:12px;color:#5B6476">If the button doesn't work, copy this link into your browser:<br><span style="word-break:break-all">${escapeHtml(msg.link)}</span></p>`
     : '';
+  const codeBox = msg.code
+    ? `<p style="margin:20px 0;text-align:center"><span style="display:inline-block;background:#EAF0FE;color:#0B1F4D;font-size:32px;font-weight:700;letter-spacing:10px;padding:14px 22px;border-radius:12px;font-family:Consolas,monospace">${escapeHtml(msg.code)}</span></p>`
+    : '';
   return `<!doctype html><html><body style="margin:0;background:#F6F8FC;font-family:Arial,'Noto Sans Gujarati',sans-serif;color:#0F172A">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px">
   <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E3E8F0">
     <tr><td style="background:#0B1F4D;padding:18px 24px;color:#ffffff;font-size:18px;font-weight:700">Bluenova Creator Hub</td></tr>
-    <tr><td style="padding:24px">${paragraphs}${button}</td></tr>
+    <tr><td style="padding:24px">${codeBox}${paragraphs}${button}</td></tr>
   </table></td></tr></table></body></html>`;
 }
 
@@ -71,6 +76,10 @@ class SmtpEmailProvider implements EmailProvider {
     secure: env.SMTP_PORT === 465, // TLS from the start; port 587 upgrades with STARTTLS
     requireTLS: true,
     auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
+    // Fail fast if the host blocks outgoing mail ports (Render's free plan does).
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
   });
 
   async send(msg: EmailMessage) {
@@ -108,15 +117,50 @@ class ResendEmailProvider implements EmailProvider {
   }
 }
 
+/** Brevo HTTPS API: works where mail ports are blocked; the sender address must be verified in Brevo. */
+class BrevoEmailProvider implements EmailProvider {
+  async send(msg: EmailMessage) {
+    const m = env.EMAIL_FROM.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+    const sender = m ? { name: m[1] || 'Bluenova Creator Hub', email: m[2] } : { name: 'Bluenova Creator Hub', email: env.EMAIL_FROM.trim() };
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json', 'api-key': env.BREVO_API_KEY ?? '' },
+      body: JSON.stringify({ sender, to: [{ email: msg.to }], subject: msg.subject, textContent: msg.text, htmlContent: renderHtml(msg) }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      const reason = body.message ?? `HTTP ${res.status}`;
+      logger.error({ status: res.status, reason }, 'Brevo email send failed');
+      throw new Error(`Brevo refused the email: ${reason}`);
+    }
+    if (env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.log(`
+  ✉️  Email sent to ${msg.to} — ${msg.subject}
+`);
+    }
+  }
+}
+
 export const consoleEmail = new ConsoleEmailProvider();
 export const email: EmailProvider =
-  env.EMAIL_PROVIDER === 'smtp' ? new SmtpEmailProvider() : env.EMAIL_PROVIDER === 'resend' ? new ResendEmailProvider() : consoleEmail;
+  env.EMAIL_PROVIDER === 'smtp' ? new SmtpEmailProvider()
+    : env.EMAIL_PROVIDER === 'resend' ? new ResendEmailProvider()
+      : env.EMAIL_PROVIDER === 'brevo' ? new BrevoEmailProvider()
+        : consoleEmail;
 
 /* ---------- templates (plain text; bilingual where users see them) ---------- */
 
 const footer = '\n\n— Bluenova Creator Hub\n+91 76002 36644 · bluenovatech.in\nBluenova will never ask for your password.';
 
 export const emails = {
+  /** Minimal: just the 6-digit code. Profile details are entered after login. */
+  otp: (to: string, code: string): EmailMessage => ({
+    to, code,
+    subject: `${code} is your Bluenova verification code`,
+    text: `Your Bluenova Creator Hub verification code is ${code}.\n\nતમારો verification code ${code} છે.\n\nIt expires in 10 minutes. If you didn't sign up, you can ignore this email.`,
+  }),
   /** Deliberately minimal: only the verification button. Profile details are entered after login. */
   verify: (to: string, _name: string, link: string): EmailMessage => ({
     to, link,

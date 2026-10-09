@@ -61,7 +61,7 @@ export function createApp() {
   // Public feature flags the frontends need (nothing sensitive).
   api.get('/config', async (_req, res, next) => {
     try {
-      ok(res, { paymentsEnabled: (await getSettings()).paymentsEnabled, testMode: env.TEST_MODE });
+      ok(res, { paymentsEnabled: (await getSettings()).paymentsEnabled ?? false, testMode: env.TEST_MODE, googleClientId: env.GOOGLE_CLIENT_ID ?? null });
     } catch (err) {
       next(err);
     }

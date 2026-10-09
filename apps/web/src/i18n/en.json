@@ -242,7 +242,18 @@
     "verifiedTitle": "Email verified ✅",
     "verifiedText": "Your email is verified. You can close this window and go back to the Bluenova tab — it will continue automatically.",
     "continueHere": "Or continue in this window",
-    "checkAgain": "I have verified — continue"
+    "checkAgain": "I have verified — continue",
+    "otpTitle": "Verify your email",
+    "otpText": "We sent a 6-digit code to {{email}}. Enter it below to finish.",
+    "otpLabel": "Verification code",
+    "otpVerify": "Verify & continue",
+    "otpResend": "Resend code",
+    "otpResendIn": "Resend code in {{s}}s",
+    "otpResent": "A new code is on its way.",
+    "changeEmail": "Change email",
+    "otpSpam": "Can't find it? Check your spam folder. The code expires in 10 minutes.",
+    "or": "or",
+    "googleTerms": "By continuing with Google you agree to our Terms of Use and Privacy Policy."
   },
   "status": {
     "creator": {
@@ -782,7 +793,14 @@
     "serverDown": "Can't reach the Bluenova server right now. Please try again in a minute.",
     "emailNotVerifiedYet": "Your email is not verified yet. Click the link in the email first.",
     "linkUsed": "This link was already used, or a newer email replaced it. Please use the link from the newest email, or request a new one.",
-    "linkExpired": "This link has expired. Please request a new one."
+    "linkExpired": "This link has expired. Please request a new one.",
+    "otpInvalid": "Incorrect code. Please check the email and try again.",
+    "otpExpired": "This code has expired or was replaced. Tap \"Resend code\" for a new one.",
+    "otpTooMany": "Too many wrong tries. Tap \"Resend code\" to get a new code.",
+    "otpCooldown": "Please wait a minute before asking for another code.",
+    "googleFailed": "Google sign-in failed. Please try again.",
+    "googleNotVerified": "This Google account email is not verified.",
+    "googleNotConfigured": "Google sign-in is not available yet."
   },
   "footer": {
     "tagline": "Brands અને creators વચ્ચે collaboration માટેનું platform.",

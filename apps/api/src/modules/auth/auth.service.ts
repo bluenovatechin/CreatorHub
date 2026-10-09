@@ -3,7 +3,7 @@ import argon2 from 'argon2';
 import type { CookieOptions, Request, Response } from 'express';
 import { authenticator } from 'otplib';
 import { env } from '../../config/env';
-import { decrypt, randomToken, sha256, type EncryptedValue } from '../../lib/crypto';
+import { decrypt, hmac, randomToken, sha256, timingSafeEqualHex, type EncryptedValue } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
 import { logger } from '../../lib/logger';
 import { signAccessToken } from '../../lib/tokens';
@@ -89,11 +89,14 @@ export async function checkCredentials(email: string, password: string): Promise
 
 const LINK_TTL = { verify_email: 24 * 3_600_000, reset_password: 60 * 60_000, signup_ticket: 60 * 60_000 } as const;
 
-export async function createEmailToken(userId: unknown, purpose: keyof typeof LINK_TTL): Promise<string> {
-  // Older unused links for the same purpose stop working.
-  await EmailTokenModel.updateMany({ userId, purpose, usedAt: null }, { $set: { usedAt: new Date() } });
+export interface PendingSignup { name: string; role: 'creator' | 'brand'; passwordHash: string }
+
+export async function createEmailToken(userId: unknown, purpose: keyof typeof LINK_TTL, pending?: PendingSignup): Promise<string> {
+  // Older unused links for the same purpose stop working. Signup tickets are the exception: each open
+  // tab keeps its own (the emailed code is the real secret), so a second tab never breaks the first.
+  if (purpose !== 'signup_ticket') await EmailTokenModel.updateMany({ userId, purpose, usedAt: null }, { $set: { usedAt: new Date() } });
   const raw = randomToken(32); // 43 url-safe characters
-  await EmailTokenModel.create({ userId, purpose, tokenHash: sha256(raw), expiresAt: new Date(Date.now() + LINK_TTL[purpose]) });
+  await EmailTokenModel.create({ userId, purpose, tokenHash: sha256(raw), expiresAt: new Date(Date.now() + LINK_TTL[purpose]), pending });
   return raw;
 }
 
@@ -122,10 +125,46 @@ async function linkProblem(raw: string, purpose: keyof typeof LINK_TTL): Promise
   return new AppError('VALIDATION_ERROR', 'errors.linkInvalid');
 }
 
+/* ---------------- 6-digit email codes (OTP) ---------------- */
+
+const OTP_TTL_MS = 10 * 60_000;
+const OTP_MAX_ATTEMPTS = 5;
+const otpHash = (userId: string, code: string) => hmac(env.JWT_ACCESS_SECRET, `email-otp:${userId}:${code}`);
+
+/** Creates a new 6-digit code for the user (older codes stop working) and returns it for emailing. */
+export async function createEmailOtp(userId: unknown): Promise<string> {
+  await EmailTokenModel.updateMany({ userId, purpose: 'verify_otp', usedAt: null }, { $set: { usedAt: new Date() } });
+  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+  await EmailTokenModel.create({
+    userId, purpose: 'verify_otp', tokenHash: sha256(randomToken(32)), codeHash: otpHash(String(userId), code),
+    expiresAt: new Date(Date.now() + OTP_TTL_MS),
+  });
+  return code;
+}
+
+/** Checks a code: max 5 tries per code, constant-time compare, single use. */
+export async function checkEmailOtp(userId: string, code: string): Promise<void> {
+  const doc = await EmailTokenModel.findOneAndUpdate(
+    { userId, purpose: 'verify_otp', usedAt: null, expiresAt: { $gt: new Date() } },
+    { $inc: { attempts: 1 } },
+    { sort: { createdAt: -1 }, new: true },
+  );
+  if (!doc) throw new AppError('VALIDATION_ERROR', 'errors.otpExpired');
+  if ((doc.attempts ?? 0) > OTP_MAX_ATTEMPTS) {
+    await EmailTokenModel.updateOne({ _id: doc._id }, { $set: { usedAt: new Date() } });
+    throw new AppError('VALIDATION_ERROR', 'errors.otpTooMany');
+  }
+  if (!doc.codeHash || !timingSafeEqualHex(doc.codeHash, otpHash(userId, code))) {
+    throw new AppError('VALIDATION_ERROR', 'errors.otpInvalid');
+  }
+  const used = await EmailTokenModel.updateOne({ _id: doc._id, usedAt: null }, { $set: { usedAt: new Date() } });
+  if (used.modifiedCount !== 1) throw new AppError('VALIDATION_ERROR', 'errors.otpInvalid');
+}
+
 /** Looks up a signup ticket without using it up. Returns the user id, or null. */
-export async function peekSignupTicket(raw: string): Promise<string | null> {
+export async function peekSignupTicket(raw: string): Promise<{ userId: string; pending?: PendingSignup } | null> {
   const doc = await EmailTokenModel.findOne({ tokenHash: sha256(raw), purpose: 'signup_ticket', usedAt: null, expiresAt: { $gt: new Date() } }).lean();
-  return doc ? String(doc.userId) : null;
+  return doc ? { userId: String(doc.userId), pending: (doc.pending ?? undefined) as PendingSignup | undefined } : null;
 }
 
 /** Links use the URL fragment (#token=…) so the token never reaches server logs or Referer headers. */

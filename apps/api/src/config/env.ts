@@ -30,8 +30,11 @@ const schema = z.object({
   DATA_ENCRYPTION_ACTIVE_VERSION: z.string().default('v1'),
   APP_BASE_URL: z.string().url().default('http://localhost:5180'),
   ADMIN_BASE_URL: z.string().url().default('http://localhost:5181'),
-  EMAIL_PROVIDER: z.enum(['console', 'smtp', 'resend']).default('console'),
+  EMAIL_PROVIDER: z.enum(['console', 'smtp', 'resend', 'brevo']).default('console'),
   RESEND_API_KEY: z.string().optional(),
+  BREVO_API_KEY: z.string().optional(),
+  // "Continue with Google": OAuth client ID from Google Cloud Console (public value). Leave empty to hide the button.
+  GOOGLE_CLIENT_ID: z.string().optional().transform((v) => (v ? v : undefined)),
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.coerce.number().int().default(465),
   SMTP_USER: z.string().optional(),
@@ -70,6 +73,7 @@ function load() {
     if (env.CORS_ORIGINS.some((o) => o === '*' || o.includes('localhost'))) problems.push('CORS_ORIGINS must not contain * or localhost');
     if (env.CORS_ORIGINS.some((o) => !o.startsWith('https://'))) problems.push('CORS_ORIGINS must be https in production');
     if (env.EMAIL_PROVIDER === 'resend' && !env.RESEND_API_KEY) problems.push('RESEND_API_KEY missing');
+    if (env.EMAIL_PROVIDER === 'brevo' && !env.BREVO_API_KEY) problems.push('BREVO_API_KEY missing');
     if (problems.length) throw new Error(`Refusing to start in production:\n  - ${problems.join('\n  - ')}`);
     if (env.TEST_MODE) {
       // eslint-disable-next-line no-console

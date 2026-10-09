@@ -21,25 +21,30 @@ import { CreatorProfileModel } from '../../models/creatorProfile';
 import { UserModel, type UserDoc } from '../../models/user';
 import { email, emails } from '../../providers/email';
 import {
-  checkCredentials, clearLoginFailures, consumeEmailToken, createEmailToken, emailLink, endAllSessions, endSession,
-  hashPassword, peekEmailToken, peekSignupTicket, refreshSession, startSession, verifyPassword, verifyTotp,
+  checkCredentials, checkEmailOtp, clearLoginFailures, consumeEmailToken, createEmailOtp, createEmailToken, emailLink,
+  endAllSessions, endSession, hashPassword, peekEmailToken, peekSignupTicket, type PendingSignup, refreshSession, startSession, verifyPassword,
+  verifyTotp,
 } from './auth.service';
+import { verifyGoogleCredential } from '../../providers/google';
 
 export const authRouter = Router();
 
-/** Never let an email failure reveal anything or break the flow; it is logged for the team. */
+/**
+ * Sends an email in the background. Requests never wait for email delivery (a slow or blocked mail
+ * server must not freeze signup/login), and failures never reveal anything to the user; they are logged.
+ */
 async function sendSafely(msg: Parameters<typeof email.send>[0]) {
   try {
     await email.send(msg);
   } catch (err) {
     logger.error({ reason: err instanceof Error ? err.message : String(err) }, 'email delivery failed');
-    if (env.NODE_ENV === 'development' && msg.link) {
+    if (env.NODE_ENV === 'development' && (msg.link || msg.code)) {
       // Never leave the developer stuck: show why it failed and the link itself.
       // eslint-disable-next-line no-console
       console.log([
         '',
         `  ⚠️  Email to ${msg.to} could NOT be sent: ${err instanceof Error ? err.message : err}`,
-        `     Link (for testing):  ${msg.link}`,
+        msg.code ? `     Code (for testing):  ${msg.code}` : `     Link (for testing):  ${msg.link}`,
         '',
       ].join('\n'));
     }
@@ -47,7 +52,7 @@ async function sendSafely(msg: Parameters<typeof email.send>[0]) {
 }
 
 /** At most one email of each kind per minute per account. */
-async function recentlySent(userId: unknown, purpose: 'verify_email' | 'reset_password') {
+async function recentlySent(userId: unknown, purpose: 'verify_otp' | 'reset_password') {
   const last = await EmailTokenModel.findOne({ userId, purpose }).sort({ createdAt: -1 }).lean();
   return !!last && Date.now() - last.createdAt.getTime() < 60_000;
 }
@@ -63,20 +68,42 @@ async function createProfile(userId: string, role: 'creator' | 'brand', name: st
   }
 }
 
-/* ---------- signup & email verification ---------- */
+/**
+ * Starts email verification: a 6-digit code by email, plus a ticket only this browser tab holds.
+ * If a code went out in the last minute, that code is still valid, so no second email is sent.
+ */
+async function startEmailVerification(user: UserDoc, pending?: PendingSignup) {
+  if (!(await recentlySent(user._id, 'verify_otp'))) {
+    const code = await createEmailOtp(user._id);
+    void sendSafely(emails.otp(user.email, code));
+  }
+  return createEmailToken(user._id, 'signup_ticket', pending);
+}
+
+const ticketSchema = z.object({ ticket: tokenSchema.shape.token });
+const otpSchema = z.object({ ticket: tokenSchema.shape.token, code: z.string().trim().regex(/^\d{6}$/, 'errors.otp') });
+
+/* ---------- signup & email verification (6-digit code on the same page) ---------- */
 
 authRouter.post('/signup', rateLimits.signup, validate({ body: signupSchema }), h(async (req, res) => {
   const d = input<SignupInput>(req);
-  const existing = await UserModel.findOne({ email: d.email }, { _id: 1 }).lean();
+  const existing = await UserModel.findOne({ email: d.email });
+  const passwordHash = await hashPassword(d.password); // always hashed, so every branch takes the same time
   if (existing) {
-    // Same response as a new signup (including a ticket that will simply never verify),
-    // so nobody can test which emails are registered.
-    await sendSafely(emails.alreadyRegistered(d.email, `${env.APP_BASE_URL}/login`));
-    return ok(res, { sent: true, ticket: randomToken(32) }, 201);
+    if (!existing.emailVerifiedAt && existing.status === 'active' && existing.role !== 'admin' && !existing.googleId) {
+      // An unfinished signup (closed the tab, refreshed, lost the code): send a fresh code.
+      // The name/password/role typed now are applied only after the code from the inbox is entered.
+      const ticket = await startEmailVerification(existing, { name: d.name, role: d.role, passwordHash });
+      return ok(res, { otpSent: true, ticket }, 201);
+    }
+    // Same response as a new signup (with a ticket that can never verify), so nobody can test
+    // which emails are registered. The real owner gets a heads-up email instead of a code.
+    void sendSafely(emails.alreadyRegistered(d.email, `${env.APP_BASE_URL}/login`));
+    return ok(res, { otpSent: true, ticket: randomToken(32) }, 201);
   }
   const now = new Date();
   const user = await UserModel.create({
-    name: d.name, email: d.email, role: d.role, passwordHash: await hashPassword(d.password), passwordChangedAt: now,
+    name: d.name, email: d.email, role: d.role, passwordHash, passwordChangedAt: now,
     preferredLanguage: req.get('accept-language')?.startsWith('en') ? 'en' : 'gu',
     consents: [
       { type: 'terms', version: POLICY_VERSION, acceptedAt: now, ip: req.ip },
@@ -85,56 +112,87 @@ authRouter.post('/signup', rateLimits.signup, validate({ body: signupSchema }), 
   });
   await createProfile(String(user._id), d.role, d.name);
   if (env.TEST_MODE) {
-    // Testing without an email service: the account is verified straight away.
+    // Testing without an email service: verified straight away, straight to the dashboard.
     user.emailVerifiedAt = new Date();
     await user.save();
-    return ok(res, { sent: true, autoVerified: true }, 201);
+    const accessToken = await startSession(req, res, user, 'user');
+    return ok(res, { accessToken, user: await meView(String(user._id)) }, 201);
   }
-  const token = await createEmailToken(user._id, 'verify_email');
-  await sendSafely(emails.verify(d.email, d.name, emailLink('/verify-email', token)));
-  // The signing-up tab keeps this ticket and uses it to continue once the email link has been clicked.
-  const ticket = await createEmailToken(user._id, 'signup_ticket');
-  ok(res, { sent: true, ticket }, 201);
+  ok(res, { otpSent: true, ticket: await startEmailVerification(user) }, 201);
 }));
 
-/** Clicking the email link only marks the email as verified. It does NOT log anyone in. */
-authRouter.post('/verify-email', rateLimits.emailLinks, validate({ body: tokenSchema }), h(async (req, res) => {
-  const userId = await consumeEmailToken(input<{ token: string }>(req).token, 'verify_email');
-  const user = await UserModel.findById(userId);
-  if (!user || user.status !== 'active' || user.role === 'admin') throw new AppError('VALIDATION_ERROR', 'errors.linkInvalid');
-  if (!user.emailVerifiedAt) {
-    user.emailVerifiedAt = new Date();
-    await user.save();
-    invalidateUser(userId);
+/** The code from the email, typed on the same page. Correct code = verified + logged in. */
+authRouter.post('/signup/verify-otp', rateLimits.otpVerify, validate({ body: otpSchema }), h(async (req, res) => {
+  const { ticket, code } = input<{ ticket: string; code: string }>(req);
+  const t = await peekSignupTicket(ticket);
+  const user = t ? await UserModel.findById(t.userId) : null;
+  if (!t || !user || user.status !== 'active' || user.role === 'admin') throw new AppError('VALIDATION_ERROR', 'errors.otpExpired');
+  await checkEmailOtp(String(user._id), code);
+  if (t.pending && !user.emailVerifiedAt) {
+    // A repeated signup: the details typed this time win.
+    user.name = t.pending.name;
+    user.passwordHash = t.pending.passwordHash;
+    user.passwordChangedAt = new Date();
+    if (user.role !== t.pending.role) {
+      await Promise.all([CreatorProfileModel.deleteOne({ userId: user._id }), BrandProfileModel.deleteOne({ userId: user._id })]);
+      user.role = t.pending.role;
+      await createProfile(String(user._id), t.pending.role, t.pending.name);
+    }
   }
-  ok(res, { verified: true });
-}));
-
-/** The signing-up tab asks: has my email been verified yet? */
-authRouter.post('/signup/status', rateLimits.signupStatus, validate({ body: z.object({ ticket: tokenSchema.shape.token }) }), h(async (req, res) => {
-  const userId = await peekSignupTicket(input<{ ticket: string }>(req).ticket);
-  const user = userId ? await UserModel.findById(userId, { emailVerifiedAt: 1, status: 1 }).lean() : null;
-  ok(res, { verified: Boolean(user && user.status === 'active' && user.emailVerifiedAt) });
-}));
-
-/** Once verified, the signing-up tab exchanges its ticket (once) for a session and continues. */
-authRouter.post('/signup/continue', rateLimits.emailLinks, validate({ body: z.object({ ticket: tokenSchema.shape.token }) }), h(async (req, res) => {
-  const { ticket } = input<{ ticket: string }>(req);
-  const userId = await peekSignupTicket(ticket);
-  const user = userId ? await UserModel.findById(userId) : null;
-  if (!user || user.status !== 'active' || !user.emailVerifiedAt) throw new AppError('INVALID_STATE', 'errors.emailNotVerifiedYet');
-  await consumeEmailToken(ticket, 'signup_ticket');
+  user.emailVerifiedAt ??= new Date();
+  await user.save();
+  invalidateUser(String(user._id));
+  // This ticket and any other open signup tabs for this account are done.
+  await EmailTokenModel.updateMany({ userId: user._id, purpose: 'signup_ticket', usedAt: null }, { $set: { usedAt: new Date() } });
   const accessToken = await startSession(req, res, user, 'user');
   ok(res, { accessToken, user: await meView(String(user._id)) });
 }));
 
-authRouter.post('/verify-email/resend', rateLimits.emailLinks, validate({ body: emailOnlySchema }), h(async (req, res) => {
-  const user = await UserModel.findOne({ email: input<{ email: string }>(req).email });
-  if (user && !user.emailVerifiedAt && user.status === 'active' && user.role !== 'admin' && !(await recentlySent(user._id, 'verify_email'))) {
-    const token = await createEmailToken(user._id, 'verify_email');
-    await sendSafely(emails.verify(user.email, user.name, emailLink('/verify-email', token)));
+authRouter.post('/signup/resend-otp', rateLimits.emailLinks, validate({ body: ticketSchema }), h(async (req, res) => {
+  const t = await peekSignupTicket(input<{ ticket: string }>(req).ticket);
+  const user = t ? await UserModel.findById(t.userId) : null;
+  if (user && !user.emailVerifiedAt && user.status === 'active') {
+    if (await recentlySent(user._id, 'verify_otp')) throw new AppError('RATE_LIMITED', 'errors.otpCooldown', undefined, 60);
+    const code = await createEmailOtp(user._id);
+    void sendSafely(emails.otp(user.email, code));
   }
   ok(res, { sent: true });
+}));
+
+/* ---------- Continue with Google ---------- */
+
+const googleSchema = z.object({
+  credential: z.string().min(100).max(5000),
+  role: z.enum(['creator', 'brand']).optional(),
+});
+
+authRouter.post('/google', rateLimits.login, validate({ body: googleSchema }), h(async (req, res) => {
+  const { credential, role } = input<{ credential: string; role?: 'creator' | 'brand' }>(req);
+  const g = await verifyGoogleCredential(credential);
+  if (!g.emailVerified) throw new AppError('FORBIDDEN', 'errors.googleNotVerified');
+  let user = await UserModel.findOne({ $or: [{ googleId: g.sub }, { email: g.email }] });
+  if (user) {
+    if (user.role === 'admin') throw new AppError('UNAUTHENTICATED', 'errors.badCredentials'); // admins use the admin panel
+    if (user.status !== 'active') throw new AppError('FORBIDDEN', 'errors.accountInactive');
+    // Google has proven this person owns the email, so linking and verifying is safe.
+    user.googleId ??= g.sub;
+    user.emailVerifiedAt ??= new Date();
+    await user.save();
+    invalidateUser(String(user._id));
+  } else {
+    const now = new Date();
+    user = await UserModel.create({
+      name: g.name.slice(0, 60), email: g.email, googleId: g.sub, role: role ?? null, emailVerifiedAt: now,
+      preferredLanguage: req.get('accept-language')?.startsWith('en') ? 'en' : 'gu',
+      consents: [
+        { type: 'terms', version: POLICY_VERSION, acceptedAt: now, ip: req.ip },
+        { type: 'privacy', version: POLICY_VERSION, acceptedAt: now, ip: req.ip },
+      ],
+    });
+    if (role) await createProfile(String(user._id), role, user.name);
+  }
+  const accessToken = await startSession(req, res, user, 'user');
+  ok(res, { accessToken, user: await meView(String(user._id)) });
 }));
 
 /* ---------- login ---------- */
@@ -145,11 +203,9 @@ authRouter.post('/login', rateLimits.login, validate({ body: loginSchema }), h(a
   if (user.role === 'admin') throw new AppError('UNAUTHENTICATED', 'errors.badCredentials'); // admins use the admin panel
   if (user.status !== 'active') throw new AppError('FORBIDDEN', 'errors.accountInactive');
   if (!user.emailVerifiedAt) {
-    if (!(await recentlySent(user._id, 'verify_email'))) {
-      const token = await createEmailToken(user._id, 'verify_email');
-      await sendSafely(emails.verify(user.email, user.name, emailLink('/verify-email', token)));
-    }
-    throw new AppError('FORBIDDEN', 'errors.emailNotVerified');
+    // Correct password but email never verified: send a code and let the same page ask for it.
+    const ticket = await startEmailVerification(user);
+    return ok(res, { needsVerification: true, ticket, email: user.email });
   }
   const accessToken = await startSession(req, res, user, 'user');
   ok(res, { accessToken, user: await meView(String(user._id)) });
@@ -178,7 +234,7 @@ authRouter.post('/password/forgot', rateLimits.emailLinks, validate({ body: emai
   if (user && user.status === 'active' && !(await recentlySent(user._id, 'reset_password'))) {
     const token = await createEmailToken(user._id, 'reset_password');
     const area = user.role === 'admin' ? 'admin' : 'app';
-    await sendSafely(emails.reset(user.email, user.name, emailLink('/reset-password', token, area)));
+    void sendSafely(emails.reset(user.email, user.name, emailLink('/reset-password', token, area)));
   }
   ok(res, { sent: true }); // identical whether or not the email exists
 }));
@@ -203,7 +259,7 @@ async function setPassword(user: UserDoc, password: string) {
   await user.save();
   await endAllSessions(String(user._id), 'password_changed');
   await clearLoginFailures(user.email);
-  await sendSafely(emails.passwordChanged(user.email, user.name));
+  void sendSafely(emails.passwordChanged(user.email, user.name));
 }
 
 async function changePassword(req: Request, kind: 'user' | 'admin') {

@@ -55,3 +55,6 @@ services:
       # Brevo (EMAIL_PROVIDER=brevo): works on Render's free plan, which blocks Gmail's mail ports
       - key: BREVO_API_KEY
         sync: false
+      # "Continue with Google": OAuth client ID from Google Cloud Console (leave unset to hide the button)
+      - key: GOOGLE_CLIENT_ID
+        sync: false

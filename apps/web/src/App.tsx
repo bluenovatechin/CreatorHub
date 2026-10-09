@@ -5,9 +5,7 @@ import { GuestOnly, RequireRole, homePathFor, useAuth } from './lib/auth';
 import { AppLayout, PublicLayout } from './components/layout';
 import { ForBrandsPage, ForCreatorsPage, HomePage, NotFoundPage } from './pages/public/PublicPages';
 import { PrivacyPage, TermsPage } from './pages/public/LegalPages';
-import {
-  CheckEmailPage, ForgotPasswordPage, LoginPage, ResetPasswordPage, RoleSelectPage, SignupPage, VerifyEmailPage,
-} from './pages/auth/AuthPages';
+import { ForgotPasswordPage, LoginPage, ResetPasswordPage, RoleSelectPage, SignupPage } from './pages/auth/AuthPages';
 import { CreatorOnboarding } from './pages/creator/Onboarding';
 import {
   CreatorDashboard, CreatorDealsPage, CreatorStatusPage, IntroReelPage, OfferDetailPage, OffersPage, OpportunitiesPage,
@@ -51,8 +49,9 @@ export const router = createBrowserRouter([
   // Auth screens use their own split-screen layout.
   { path: '/login', element: <GuestOnly><LoginPage /></GuestOnly> },
   { path: '/signup', element: <GuestOnly><SignupPage /></GuestOnly> },
-  { path: '/check-email', element: <GuestOnly><CheckEmailPage /></GuestOnly> },
-  { path: '/verify-email', element: <VerifyEmailPage /> },
+  // Email verification now uses a 6-digit code on the signup/login page; old links go to login.
+  { path: '/check-email', element: <Navigate to="/login" replace /> },
+  { path: '/verify-email', element: <Navigate to="/login" replace /> },
   { path: '/forgot-password', element: <GuestOnly><ForgotPasswordPage /></GuestOnly> },
   { path: '/reset-password', element: <ResetPasswordPage /> },
   { path: '/welcome/role', element: <RequireSignedIn><RoleSelectPage /></RequireSignedIn> },

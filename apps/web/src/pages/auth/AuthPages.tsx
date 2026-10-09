@@ -3,13 +3,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Building2, CheckCircle2, Clapperboard, KeyRound, Lock, Mail, MailCheck, User } from 'lucide-react';
+import { Building2, Clapperboard, KeyRound, Lock, Mail, MailCheck, ShieldCheck, User } from 'lucide-react';
 import { emailOnlySchema, loginSchema, resetPasswordSchema, signupSchema, z, type SignupInput } from '../../lib/zod';
-import { Alert, Button, Checkbox, ChoiceCards, Field, Input, PasswordInput, PasswordStrength, Spinner } from '@bluenova/ui';
-import { ApiError, api, applyServerErrors, errorText, type Me } from '../../lib/api';
+import { Alert, Button, Checkbox, ChoiceCards, Field, Input, PasswordInput, PasswordStrength } from '@bluenova/ui';
+import { api, applyServerErrors, errorText, type Me } from '../../lib/api';
 import { postLoginPath, useAuth } from '../../lib/auth';
+import { useAppConfig } from '../../lib/config';
 import { AuthLayout } from '../../components/layout';
 import { useFieldError } from '../../components/common';
+
+type Session = { accessToken: string; user: Me };
 
 function Heading({ title, text }: { title: string; text?: string }) {
   return (
@@ -40,46 +43,189 @@ function useHashToken() {
   return token;
 }
 
-/* ---------- signup ticket (kept only in this browser tab) ---------- */
+/** Signs the user in and opens their dashboard (or the next onboarding step). */
+function useFinishLogin() {
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const { signIn } = useAuth();
+  return (s: Session) => {
+    signIn(s.accessToken, s.user);
+    navigate(postLoginPath(s.user, params.get('next')), { replace: true });
+  };
+}
 
-const TICKET_KEY = 'bn_signup';
-function saveTicket(ticket: string | undefined, email: string) {
-  if (!ticket) return;
-  try { sessionStorage.setItem(TICKET_KEY, JSON.stringify({ ticket, email })); } catch { /* storage blocked: the user can still log in */ }
+/* ---------- Email code step (shown on the same page after signup, or on login if not yet verified) ---------- */
+
+function OtpStep({ ticket, email, onBack }: { ticket: string; email: string; onBack: () => void }) {
+  const { t } = useTranslation();
+  const finish = useFinishLogin();
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [cooldown, setCooldown] = useState(60);
+  const [resent, setResent] = useState(false);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(id);
+  }, [cooldown]);
+
+  const verify = async () => {
+    if (!/^\d{6}$/.test(code)) { setError(t('errors.otp')); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      finish(await api.post<Session>('/auth/signup/verify-otp', { ticket, code }));
+    } catch (e) {
+      setError(errorText(t, e));
+      setCode('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resend = async () => {
+    setError(null);
+    setResent(false);
+    try {
+      await api.post('/auth/signup/resend-otp', { ticket });
+      setResent(true);
+      setCooldown(60);
+    } catch (e) {
+      setError(errorText(t, e));
+    }
+  };
+
+  return (
+    <div className="animate-fade-up">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary"><MailCheck className="h-7 w-7" aria-hidden="true" /></span>
+      <Heading title={t('auth.otpTitle')} text={t('auth.otpText', { email })} />
+      <form onSubmit={(e) => { e.preventDefault(); void verify(); }} noValidate className="space-y-5">
+        <Field label={t('auth.otpLabel')}>
+          {(id) => (
+            <Input id={id} inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus icon={<ShieldCheck />}
+              className="text-center font-mono text-2xl tracking-[0.5em]" value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+          )}
+        </Field>
+        {error && <Alert tone="red">{error}</Alert>}
+        {resent && !error && <Alert tone="green">{t('auth.otpResent')}</Alert>}
+        <Button type="submit" block size="lg" loading={busy} disabled={code.length !== 6}>{t('auth.otpVerify')}</Button>
+      </form>
+      <div className="mt-5 flex items-center justify-between text-sm">
+        <button type="button" onClick={onBack} className="font-semibold text-primary hover:underline">{t('auth.changeEmail')}</button>
+        <button type="button" onClick={resend} disabled={cooldown > 0} className="font-semibold text-primary hover:underline disabled:text-ink-faint disabled:no-underline">
+          {cooldown > 0 ? t('auth.otpResendIn', { s: cooldown }) : t('auth.otpResend')}
+        </button>
+      </div>
+      <p className="mt-6 text-xs text-ink-muted">{t('auth.otpSpam')}</p>
+    </div>
+  );
 }
-function readTicket(): { ticket: string; email: string } | null {
-  try { return JSON.parse(sessionStorage.getItem(TICKET_KEY) ?? 'null'); } catch { return null; }
+
+/* ---------- Continue with Google ---------- */
+
+interface GoogleIdApi {
+  accounts: { id: {
+    initialize: (o: { client_id: string; callback: (r: { credential: string }) => void; ux_mode?: 'popup'; use_fedcm_for_prompt?: boolean }) => void;
+    renderButton: (el: HTMLElement, o: Record<string, unknown>) => void;
+  } };
 }
-function clearTicket() {
-  try { sessionStorage.removeItem(TICKET_KEY); } catch { /* ignore */ }
+declare global { interface Window { google?: GoogleIdApi } }
+
+let gsiLoading: Promise<void> | null = null;
+function loadGoogleScript(): Promise<void> {
+  if (window.google?.accounts) return Promise.resolve();
+  gsiLoading ??= new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => { gsiLoading = null; reject(new Error('Google script failed to load')); };
+    document.head.appendChild(s);
+  });
+  return gsiLoading;
+}
+
+/**
+ * Google's own button. `beforeSignIn` can block (e.g. role not chosen yet) by returning an error message.
+ * Google proves the email is real, so these accounts skip the email code.
+ */
+function GoogleButton({ role, beforeSignIn }: { role?: 'creator' | 'brand'; beforeSignIn?: () => string | null }) {
+  const { t, i18n } = useTranslation();
+  const { googleClientId } = useAppConfig();
+  const finish = useFinishLogin();
+  const ref = useRef<HTMLDivElement>(null);
+  const latest = useRef({ role, beforeSignIn });
+  latest.current = { role, beforeSignIn };
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!googleClientId || !ref.current) return;
+    let cancelled = false;
+    loadGoogleScript().then(() => {
+      if (cancelled || !ref.current || !window.google) return;
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        ux_mode: 'popup',
+        callback: async ({ credential }) => {
+          const blocked = latest.current.beforeSignIn?.();
+          if (blocked) { setError(blocked); return; }
+          setError(null);
+          try {
+            finish(await api.post<Session>('/auth/google', { credential, role: latest.current.role }));
+          } catch (e) {
+            setError(errorText(t, e));
+          }
+        },
+      });
+      ref.current.innerHTML = '';
+      window.google.accounts.id.renderButton(ref.current, {
+        theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', width: 360, locale: i18n.language === 'gu' ? 'gu' : 'en',
+      });
+    }).catch(() => setError(t('errors.googleFailed')));
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleClientId, i18n.language]);
+
+  if (!googleClientId) return null;
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wider text-ink-faint">
+        <span className="h-px flex-1 bg-line" />{t('auth.or')}<span className="h-px flex-1 bg-line" />
+      </div>
+      <div ref={ref} className="flex justify-center" />
+      {error && <Alert tone="red">{error}</Alert>}
+    </div>
+  );
 }
 
 /* ---------- Log in ---------- */
 
 export function LoginPage() {
   const { t } = useTranslation();
-  const [params] = useSearchParams();
-  const navigate = useNavigate();
   const location = useLocation();
-  const { signIn } = useAuth();
+  const finish = useFinishLogin();
   const fe = useFieldError();
-  const [error, setError] = useState<{ text: string; tone: 'red' | 'amber' } | null>(
-    (location.state as { resetDone?: boolean } | null)?.resetDone ? { text: t('auth.resetDone'), tone: 'amber' }
-      : (location.state as { created?: boolean } | null)?.created ? { text: t('auth.createdLogin'), tone: 'amber' } : null,
+  const [verify, setVerify] = useState<{ ticket: string; email: string } | null>(null);
+  const [error, setError] = useState<{ text: string; tone: 'red' | 'amber' | 'green' } | null>(
+    (location.state as { resetDone?: boolean } | null)?.resetDone ? { text: t('auth.resetDone'), tone: 'amber' } : null,
   );
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<z.infer<typeof loginSchema>>({ resolver: zodResolver(loginSchema) });
 
   const onSubmit = async (v: z.infer<typeof loginSchema>) => {
     setError(null);
     try {
-      const res = await api.post<{ accessToken: string; user: Me }>('/auth/login', v);
-      signIn(res.accessToken, res.user);
-      navigate(postLoginPath(res.user, params.get('next')), { replace: true });
+      const r = await api.post<Session & { needsVerification?: boolean; ticket?: string; email?: string }>('/auth/login', v);
+      if (r.needsVerification && r.ticket) setVerify({ ticket: r.ticket, email: r.email ?? v.email });
+      else finish(r);
     } catch (e) {
-      const notVerified = e instanceof ApiError && e.message === 'errors.emailNotVerified';
-      setError({ text: errorText(t, e), tone: notVerified ? 'amber' : 'red' });
+      setError({ text: errorText(t, e), tone: 'red' });
     }
   };
+
+  if (verify) return <AuthLayout><OtpStep ticket={verify.ticket} email={verify.email} onBack={() => setVerify(null)} /></AuthLayout>;
 
   return (
     <AuthLayout>
@@ -96,6 +242,10 @@ export function LoginPage() {
         {error && <Alert tone={error.tone}>{error.text}</Alert>}
         <Button type="submit" block size="lg" loading={isSubmitting}>{t('auth.login')}</Button>
       </form>
+      <div className="mt-6">
+        <GoogleButton />
+        <p className="mt-3 text-center text-xs text-ink-muted">{t('auth.googleTerms')}</p>
+      </div>
       <p className="mt-8 text-center text-sm text-ink-muted">
         {t('auth.noAccount')} <Link to="/signup" className="font-semibold text-primary hover:underline">{t('auth.createAccount')}</Link>
       </p>
@@ -108,32 +258,32 @@ export function LoginPage() {
 export function SignupPage() {
   const { t } = useTranslation();
   const [params] = useSearchParams();
-  const navigate = useNavigate();
+  const finish = useFinishLogin();
   const fe = useFieldError();
   const labels = usePasswordLabels();
   const [error, setError] = useState<string | null>(null);
+  const [verify, setVerify] = useState<{ ticket: string; email: string } | null>(null);
   const initialRole = params.get('role') === 'brand' ? 'brand' : params.get('role') === 'creator' ? 'creator' : undefined;
   const { register, handleSubmit, watch, setValue, setError: setFieldError, formState: { errors, isSubmitting } } = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
     defaultValues: { role: initialRole } as Partial<SignupInput>,
   });
   const role = watch('role');
+  const acceptTerms = watch('acceptTerms');
   const password = watch('password') ?? '';
 
   const onSubmit = async (v: SignupInput) => {
     setError(null);
     try {
-      const r = await api.post<{ autoVerified?: boolean; ticket?: string }>('/auth/signup', v);
-      if (r.autoVerified) {
-        navigate('/login', { state: { created: true } });
-      } else {
-        saveTicket(r.ticket, v.email);
-        navigate('/check-email', { state: { email: v.email } });
-      }
+      const r = await api.post<Partial<Session> & { otpSent?: boolean; ticket?: string }>('/auth/signup', v);
+      if (r.accessToken && r.user) finish(r as Session); // test mode: verified straight away
+      else if (r.ticket) setVerify({ ticket: r.ticket, email: v.email });
     } catch (e) {
       if (!applyServerErrors(e, setFieldError)) setError(errorText(t, e));
     }
   };
+
+  if (verify) return <AuthLayout><OtpStep ticket={verify.ticket} email={verify.email} onBack={() => setVerify(null)} /></AuthLayout>;
 
   return (
     <AuthLayout>
@@ -180,117 +330,12 @@ export function SignupPage() {
         {error && <Alert tone="red">{error}</Alert>}
         <Button type="submit" block size="lg" loading={isSubmitting}>{t('auth.signup')}</Button>
       </form>
+      <div className="mt-6">
+        <GoogleButton role={role} beforeSignIn={() => (!role ? t('errors.roleRequired') : !acceptTerms ? t('errors.consentRequired') : null)} />
+      </div>
       <p className="mt-8 text-center text-sm text-ink-muted">
         {t('auth.haveAccount')} <Link to="/login" className="font-semibold text-primary hover:underline">{t('auth.login')}</Link>
       </p>
-    </AuthLayout>
-  );
-}
-
-/* ---------- Check your email ---------- */
-
-export function CheckEmailPage() {
-  const { t } = useTranslation();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { signIn } = useAuth();
-  const saved = readTicket();
-  const email = (location.state as { email?: string } | null)?.email ?? saved?.email ?? '';
-  const [state, setState] = useState<'idle' | 'busy' | 'sent'>('idle');
-  const [error, setError] = useState<string | null>(null);
-  const continuing = useRef(false);
-
-  // Continue automatically as soon as the email link has been clicked (in any window or device).
-  const tryContinue = async (manual = false) => {
-    const ticket = readTicket()?.ticket;
-    if (!ticket || continuing.current) return;
-    try {
-      const { verified } = await api.post<{ verified: boolean }>('/auth/signup/status', { ticket });
-      if (!verified) {
-        if (manual) setError(t('errors.emailNotVerifiedYet'));
-        return;
-      }
-      continuing.current = true;
-      const res = await api.post<{ accessToken: string; user: Me }>('/auth/signup/continue', { ticket });
-      clearTicket();
-      signIn(res.accessToken, res.user);
-      navigate(postLoginPath(res.user, null), { replace: true });
-    } catch (e) {
-      continuing.current = false;
-      if (manual) setError(errorText(t, e));
-    }
-  };
-
-  useEffect(() => {
-    const id = setInterval(() => void tryContinue(), 4000);
-    const onFocus = () => void tryContinue();
-    window.addEventListener('focus', onFocus);
-    return () => { clearInterval(id); window.removeEventListener('focus', onFocus); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const resend = async () => {
-    if (!email) return;
-    setState('busy');
-    await api.post('/auth/verify-email/resend', { email }).catch(() => undefined);
-    setState('sent');
-  };
-  return (
-    <AuthLayout>
-      <div className="text-center">
-        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-soft text-primary"><MailCheck className="h-8 w-8" aria-hidden="true" /></span>
-        <h1 className="mt-6 font-display text-3xl font-extrabold text-navy">{t('auth.checkTitle')}</h1>
-        <p className="mt-3 text-ink-muted">{t('auth.checkText', { email: email || '…' })}</p>
-        {saved && <p className="mt-5 flex items-center justify-center gap-2 text-sm font-medium text-primary" role="status"><Spinner className="h-4 w-4" />{t('auth.waiting')}</p>}
-        <p className="mt-6 text-sm text-ink-muted">{t('auth.checkHint')}</p>
-        <div className="mt-6 flex flex-col gap-3">
-          {saved && <Button onClick={() => { setError(null); void tryContinue(true); }}>{t('auth.checkAgain')}</Button>}
-          {error && <Alert tone="amber">{error}</Alert>}
-          {email && (state === 'sent'
-            ? <Alert tone="green">{t('auth.resent')}</Alert>
-            : <Button variant="secondary" loading={state === 'busy'} onClick={resend}>{t('auth.resend')}</Button>)}
-          <Link to="/login" className="text-sm font-semibold text-primary hover:underline">{t('auth.backToLogin')}</Link>
-        </div>
-      </div>
-    </AuthLayout>
-  );
-}
-
-/* ---------- Verify email (from the link) ---------- */
-
-export function VerifyEmailPage() {
-  const { t } = useTranslation();
-  const token = useHashToken();
-  const started = useRef(false);
-  const [result, setResult] = useState<'pending' | 'ok' | 'failed'>('pending');
-
-  useEffect(() => {
-    if (started.current) return; // links are single-use: never send twice
-    started.current = true;
-    if (!token) { setResult('failed'); return; }
-    api.post('/auth/verify-email', { token }).then(() => setResult('ok')).catch(() => setResult('failed'));
-  }, [token]);
-
-  return (
-    <AuthLayout>
-      <div className="text-center">
-        {result === 'pending' && <div className="flex flex-col items-center gap-4 text-ink-muted"><Spinner className="h-8 w-8 text-primary" />{t('auth.verifying')}</div>}
-        {result === 'ok' && (
-          <>
-            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success-soft text-success"><CheckCircle2 className="h-8 w-8" aria-hidden="true" /></span>
-            <h1 className="mt-6 font-display text-3xl font-extrabold text-navy">{t('auth.verifiedTitle')}</h1>
-            <p className="mt-3 text-ink-muted">{t('auth.verifiedText')}</p>
-            <Link to="/login" className="mt-8 inline-block text-sm font-semibold text-primary hover:underline">{t('auth.continueHere')}</Link>
-          </>
-        )}
-        {result === 'failed' && (
-          <>
-            <h1 className="font-display text-2xl font-extrabold text-navy">{t('auth.verifyFail')}</h1>
-            <p className="mt-2 text-ink-muted">{t('auth.verifyFailText')}</p>
-            <Link to="/login" className="mt-6 inline-flex min-h-12 items-center rounded-ctl bg-primary px-6 font-semibold text-white">{t('auth.login')}</Link>
-          </>
-        )}
-      </div>
     </AuthLayout>
   );
 }
@@ -384,7 +429,7 @@ export function ResetPasswordPage() {
   );
 }
 
-/* ---------- Role choice (only for older accounts without a role) ---------- */
+/* ---------- Role choice (Google sign-ups and older accounts without a role) ---------- */
 
 export function RoleSelectPage() {
   const { t } = useTranslation();
