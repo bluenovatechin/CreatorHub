@@ -129,93 +129,67 @@ function OtpStep({ ticket, email, onBack }: { ticket: string; email: string; onB
   );
 }
 
-/* ---------- Continue with Google ---------- */
+/* ---------- Continue with Google (full-page redirect: no pop-up, so pop-up/ad blockers can't break it) ---------- */
 
-interface GoogleIdApi {
-  accounts: { id: {
-    initialize: (o: { client_id: string; callback: (r: { credential: string }) => void; ux_mode?: 'popup'; use_fedcm_for_prompt?: boolean }) => void;
-    renderButton: (el: HTMLElement, o: Record<string, unknown>) => void;
-  } };
-}
-declare global { interface Window { google?: GoogleIdApi } }
+const GOOGLE_STATE_KEY = 'bn_google_signin'; // sessionStorage: this tab only, removed as soon as Google sends the person back
 
-let gsiLoading: Promise<void> | null = null;
-function loadGoogleScript(): Promise<void> {
-  if (window.google?.accounts) return Promise.resolve();
-  gsiLoading ??= new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://accounts.google.com/gsi/client';
-    s.async = true;
-    s.onload = () => resolve();
-    s.onerror = () => { gsiLoading = null; reject(new Error('Google script failed to load')); };
-    document.head.appendChild(s);
-  });
-  return gsiLoading;
+/** Where Google sends the person back. Must be listed in Google Cloud → Clients → "Authorized redirect URIs". */
+const googleRedirectUri = () => `${window.location.origin}/auth/google/callback`;
+
+/** A random value nobody can guess (base64url). */
+function randomValue(bytes = 32) {
+  const a = crypto.getRandomValues(new Uint8Array(bytes));
+  return btoa(String.fromCharCode(...a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 /**
- * Google's own "Continue with Google" button (same button on the login and signup pages).
+ * "Continue with Google" (same button on /login and /signup).
  *
- * Flow: click → Google popup → Google gives us a signed `credential` → POST /auth/google →
- * the API verifies it with Google and logs the person in (creating the account the first time) →
- * new accounts have no role yet, so useFinishLogin() sends them to /welcome/role ("creator or brand?").
- * Google has already proven the email is real, so these accounts never need the 6-digit email code.
+ * Flow: click → we remember a random `state` + `nonce` for this tab → the WHOLE PAGE goes to Google's sign-in
+ * page → the person picks an account → Google sends them back to /auth/google/callback#id_token=…&state=…
+ * → GoogleCallbackPage checks `state`, sends the token + nonce to POST /auth/google → logged in.
+ * New accounts have no role yet, so they continue to /welcome/role ("creator or brand?").
+ * (We don't use Google's pop-up button: pop-up blockers, ad-blockers and Brave Shields often stop it.)
  */
 function GoogleButton() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { googleClientId, status } = useAppConfig();
-  const finish = useFinishLogin();
-  const ref = useRef<HTMLDivElement>(null);
-  const [ready, setReady] = useState(false); // true once Google's own button has been drawn
-  const [scriptFailed, setScriptFailed] = useState(false); // Google's script blocked (offline, ad-blocker…)
+  const [params] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (!googleClientId || !ref.current) return;
-    let cancelled = false;
-    loadGoogleScript().then(() => {
-      if (cancelled || !ref.current || !window.google) return;
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        ux_mode: 'popup',
-        callback: async ({ credential }) => {
-          setError(null);
-          try {
-            finish(await api.post<Session>('/auth/google', { credential }));
-          } catch (e) {
-            setError(errorText(t, e));
-          }
-        },
-      });
-      ref.current.innerHTML = '';
-      window.google.accounts.id.renderButton(ref.current, {
-        theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', width: 360, locale: i18n.language === 'gu' ? 'gu' : 'en',
-      });
-      setReady(true);
-    }).catch(() => setScriptFailed(true));
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleClientId, i18n.language]);
-
-  // Until Google's real button is ready (or if it can't load), show our own look-alike so the option is
-  // ALWAYS visible. Clicking it explains what's wrong instead of the button silently disappearing.
-  const explain = () => setError(
-    status === 'failed' ? t('errors.serverDown') // our API is unreachable
-      : status === 'loading' ? t('auth.googleLoading')
-        : !googleClientId ? t('errors.googleNotConfigured') // GOOGLE_CLIENT_ID not set on the API
-          : scriptFailed ? t('errors.googleFailed')
-            : t('auth.googleLoading'),
-  );
+  const start = () => {
+    setError(null);
+    if (status === 'failed') return setError(t('errors.serverDown')); // our API is unreachable
+    if (status === 'loading') return setError(t('auth.googleLoading'));
+    if (!googleClientId) return setError(t('errors.googleNotConfigured')); // GOOGLE_CLIENT_ID not set on the API
+    const state = randomValue();
+    const nonce = randomValue();
+    try {
+      sessionStorage.setItem(GOOGLE_STATE_KEY, JSON.stringify({ state, nonce, next: params.get('next') }));
+    } catch {
+      return setError(t('errors.googleFailed')); // storage blocked (very strict privacy mode)
+    }
+    setBusy(true);
+    const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    url.search = new URLSearchParams({
+      client_id: googleClientId,
+      redirect_uri: googleRedirectUri(),
+      response_type: 'id_token', // Google returns a signed ID token (who you are); we never get your Google password
+      scope: 'openid email profile',
+      prompt: 'select_account',
+      state, // proves the answer belongs to THIS click (stops someone else's sign-in being pushed into your tab)
+      nonce, // put inside the token by Google; the API checks it (stops an old/stolen token being replayed)
+    }).toString();
+    window.location.assign(url.toString());
+  };
 
   return (
     <div className="space-y-3">
-      <div ref={ref} className={ready ? 'flex min-h-11 justify-center' : 'hidden'} />
-      {!ready && (
-        <button type="button" onClick={explain}
-          className="flex min-h-11 w-full items-center justify-center gap-3 rounded-ctl border border-line-strong bg-white px-4 text-sm font-semibold text-ink hover:bg-bg">
-          <GoogleLogo />{t('auth.continueGoogle')}
-        </button>
-      )}
+      <button type="button" onClick={start} disabled={busy}
+        className="flex min-h-11 w-full items-center justify-center gap-3 rounded-ctl border border-line-strong bg-white px-4 text-sm font-semibold text-ink hover:bg-bg disabled:opacity-60">
+        <GoogleLogo />{t('auth.continueGoogle')}
+      </button>
       {error && <Alert tone="red">{error}</Alert>}
       <div className="flex items-center gap-3 pt-1 text-xs font-semibold uppercase tracking-wider text-ink-faint">
         <span className="h-px flex-1 bg-line" />{t('auth.orEmail')}<span className="h-px flex-1 bg-line" />
@@ -233,6 +207,56 @@ function GoogleLogo() {
       <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
       <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
     </svg>
+  );
+}
+
+/**
+ * /auth/google/callback: Google sends the person back here with #id_token=…&state=… (or #error=…).
+ * The `#` part never reaches any server log. We check `state`, then POST /auth/google { credential, nonce }.
+ * ✅ → logged in → their area (or /welcome/role for new accounts).  ❌ → message + "Back to log in".
+ */
+export function GoogleCallbackPage() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { signIn } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const ran = useRef(false); // React dev mode runs effects twice; the token must be used only once
+
+  useEffect(() => {
+    if (ran.current) return;
+    ran.current = true;
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    window.history.replaceState(null, '', window.location.pathname); // remove the token from the address bar
+    let saved: { state?: string; nonce?: string; next?: string | null } = {};
+    try {
+      saved = JSON.parse(sessionStorage.getItem(GOOGLE_STATE_KEY) ?? '{}');
+      sessionStorage.removeItem(GOOGLE_STATE_KEY);
+    } catch { /* storage blocked: handled below as an invalid state */ }
+
+    const credential = hash.get('id_token');
+    if (hash.get('error')) return setError(t(hash.get('error') === 'access_denied' ? 'errors.googleCancelled' : 'errors.googleFailed'));
+    if (!credential || !saved.state || hash.get('state') !== saved.state || !saved.nonce) return setError(t('errors.googleFailed'));
+
+    api.post<Session>('/auth/google', { credential, nonce: saved.nonce })
+      .then((s) => {
+        signIn(s.accessToken, s.user);
+        navigate(postLoginPath(s.user, saved.next ?? null), { replace: true });
+      })
+      .catch((e) => setError(errorText(t, e)));
+  }, [t, navigate, signIn]);
+
+  return (
+    <AuthLayout>
+      {error ? (
+        <>
+          <Heading title={t('auth.googleProblemTitle')} />
+          <Alert tone="red">{error}</Alert>
+          <Link to="/login" replace className="mt-6 inline-block font-semibold text-primary hover:underline">{t('auth.backToLogin')}</Link>
+        </>
+      ) : (
+        <Heading title={t('auth.googleSigningIn')} text={t('auth.pleaseWait')} />
+      )}
+    </AuthLayout>
   );
 }
 

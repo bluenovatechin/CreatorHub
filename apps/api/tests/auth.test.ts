@@ -141,22 +141,23 @@ describe('signup and email verification', () => {
 });
 
 describe('continue with Google', () => {
+  const nonce = 'n'.repeat(32);
   const fakeGoogle = (identity: { sub: string; email: string; emailVerified?: boolean; name?: string }) =>
-    setGoogleVerifierForTests(async () => ({ name: 'Google User', emailVerified: true, ...identity }));
+    setGoogleVerifierForTests(async () => ({ name: 'Google User', emailVerified: true, nonce, ...identity }));
   const credential = 'g'.repeat(200);
   afterEach(() => setGoogleVerifierForTests(null));
 
   it('creates a verified account, signs in, and the role is chosen on the next screen', async () => {
     const email = nextEmail();
     fakeGoogle({ sub: 'google-1', email, name: 'Meera Joshi' });
-    const r = await request(app).post('/api/v1/auth/google').send({ credential }).expect(200);
+    const r = await request(app).post('/api/v1/auth/google').send({ credential, nonce }).expect(200);
     expect(r.body.data.user.role).toBeNull();
     await request(app).post('/api/v1/auth/role').set(bearer(r.body.data.accessToken)).send({ role: 'brand' }).expect(200);
     const u = await UserModel.findOne({ email }).lean();
     expect(u!.emailVerifiedAt).toBeTruthy();
     expect(u!.googleId).toBe('google-1');
     // Signing in again finds the same account.
-    const again = await request(app).post('/api/v1/auth/google').send({ credential }).expect(200);
+    const again = await request(app).post('/api/v1/auth/google').send({ credential, nonce }).expect(200);
     expect(again.body.data.user.id).toBe(r.body.data.user.id);
     expect(again.body.data.user.role).toBe('brand');
   });
@@ -164,19 +165,25 @@ describe('continue with Google', () => {
   it('links Google to an existing email account, and rejects unverified Google emails and admins', async () => {
     const { email } = await signup('creator');
     fakeGoogle({ sub: 'google-2', email });
-    const r = await request(app).post('/api/v1/auth/google').send({ credential }).expect(200);
+    const r = await request(app).post('/api/v1/auth/google').send({ credential, nonce }).expect(200);
     expect(r.body.data.user.role).toBe('creator');
     fakeGoogle({ sub: 'google-3', email: nextEmail(), emailVerified: false });
-    await request(app).post('/api/v1/auth/google').send({ credential }).expect(403);
+    await request(app).post('/api/v1/auth/google').send({ credential, nonce }).expect(403);
     const admin = await loginAdmin('reviewer');
     fakeGoogle({ sub: 'google-4', email: admin.email });
-    const team = await request(app).post('/api/v1/auth/google').send({ credential }).expect(403);
+    const team = await request(app).post('/api/v1/auth/google').send({ credential, nonce }).expect(403);
     expect(team.body.error.message).toBe('errors.googleTeamAccount');
+  });
+
+  it('refuses a token whose nonce does not match (replayed or injected token)', async () => {
+    fakeGoogle({ sub: 'google-6', email: nextEmail() });
+    await request(app).post('/api/v1/auth/google').send({ credential, nonce: 'x'.repeat(32) }).expect(401);
+    await request(app).post('/api/v1/auth/google').send({ credential }).expect(400); // nonce is required
   });
 
   it('a new Google user without a role is sent to choose one', async () => {
     fakeGoogle({ sub: 'google-5', email: nextEmail() });
-    const r = await request(app).post('/api/v1/auth/google').send({ credential }).expect(200);
+    const r = await request(app).post('/api/v1/auth/google').send({ credential, nonce }).expect(200);
     expect(r.body.data.user.role).toBeNull();
   });
 });

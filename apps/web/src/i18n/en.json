@@ -257,7 +257,10 @@
     "continueGoogle": "Continue with Google",
     "orEmail": "or use your email",
     "googleLoading": "Google sign-in is still loading. Please try again in a moment.",
-    "serverWaking": "Starting the server… this takes up to a minute after a quiet period. You can keep typing."
+    "serverWaking": "Starting the server… this takes up to a minute after a quiet period. You can keep typing.",
+    "googleSigningIn": "Signing you in with Google…",
+    "pleaseWait": "Just a moment.",
+    "googleProblemTitle": "Couldn't sign in with Google"
   },
   "status": {
     "creator": {
@@ -805,7 +808,8 @@
     "googleFailed": "Google sign-in failed. Please try again.",
     "googleNotVerified": "This Google account email is not verified.",
     "googleNotConfigured": "Google sign-in is not available yet.",
-    "googleTeamAccount": "This Google account is a Bluenova team (admin) account. Team members log in at the admin panel. To try the website, use a different Google account or email."
+    "googleTeamAccount": "This Google account is a Bluenova team (admin) account. Team members log in at the admin panel. To try the website, use a different Google account or email.",
+    "googleCancelled": "Google sign-in was cancelled. You can try again or use your email."
   },
   "footer": {
     "tagline": "Brands અને creators વચ્ચે collaboration માટેનું platform.",

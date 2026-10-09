@@ -64,7 +64,7 @@
 | `POST /auth/signup` | 🌐 | `{name,email,password,confirmPassword,acceptTerms}` → `{otpSent,ticket}` (TEST_MODE: `{accessToken,user}`) | `SignupPage` |
 | `POST /auth/signup/verify-otp` | 🌐 | `{ticket,code}` → `{accessToken,user}` + cookie | `OtpStep` |
 | `POST /auth/signup/resend-otp` | 🌐 | `{ticket}` → `{sent:true}` (1 per minute) | `OtpStep` "Resend code" |
-| `POST /auth/google` | 🌐 | `{credential}` → `{accessToken,user}` + cookie | `GoogleButton` |
+| `POST /auth/google` | 🌐 | `{credential, nonce}` → `{accessToken,user}` + cookie | `GoogleCallbackPage` (`/auth/google/callback`) |
 | `POST /auth/login` | 🌐 | `{email,password}` → `{accessToken,user}` or `{needsVerification,ticket,email}` | `LoginPage` |
 | `POST /auth/refresh` | cookie | → `{accessToken,user}` + new cookie | `AuthProvider` (page load) and the API client after a 401 |
 | `POST /auth/logout` | cookie | → `{loggedOut:true}` | menu → Log out |

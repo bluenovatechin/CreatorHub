@@ -1,6 +1,7 @@
 /**
- * "CONTINUE WITH GOOGLE": checks the signed ID token the Google button gave the browser
- * (signature, expiry, and that it was made for OUR GOOGLE_CLIENT_ID). Used by POST /auth/google.
+ * "CONTINUE WITH GOOGLE": checks the signed ID token Google sent back to the website after sign-in
+ * (signature, expiry, made for OUR GOOGLE_CLIENT_ID) and returns who it is + the nonce inside it.
+ * Used by POST /auth/google.
  */
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../config/env';
@@ -11,6 +12,7 @@ export interface GoogleIdentity {
   email: string;
   emailVerified: boolean;
   name: string;
+  nonce: string | null; // the random value the website sent to Google; must match what the browser sends us
 }
 
 type Verifier = (credential: string) => Promise<GoogleIdentity>;
@@ -27,7 +29,10 @@ const googleVerifier: Verifier = async (credential) => {
     const ticket = await client.verifyIdToken({ idToken: credential, audience: env.GOOGLE_CLIENT_ID });
     const p = ticket.getPayload();
     if (!p?.sub || !p.email) throw new Error('missing claims');
-    return { sub: p.sub, email: p.email.toLowerCase(), emailVerified: p.email_verified === true, name: p.name ?? p.email.split('@')[0] };
+    return {
+      sub: p.sub, email: p.email.toLowerCase(), emailVerified: p.email_verified === true,
+      name: p.name ?? p.email.split('@')[0], nonce: p.nonce ?? null,
+    };
   } catch {
     throw new AppError('UNAUTHENTICATED', 'errors.googleFailed');
   }

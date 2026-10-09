@@ -74,8 +74,8 @@ Test locally with `npm run email:test -- --to you@example.com`.
    - set up the app (External);
    - while testing, keep it in **Testing** and add test users.
 2. **Clients → Create client → Web application:**
-   - Authorized JavaScript origins: `http://localhost`, `http://localhost:5180`, `https://creator-hub-mu-five.vercel.app`.
-   - No redirect URI is needed (popup mode).
+   - **Authorized JavaScript origins:** `http://localhost:5180`, `https://creator-hub-mu-five.vercel.app`.
+   - **Authorized redirect URIs:** `https://creator-hub-mu-five.vercel.app/auth/google/callback` and `http://localhost:5180/auth/google/callback`. Sign-in is a full-page redirect, not a pop-up, so blockers can't stop it.
 3. Copy the Client ID into `GOOGLE_CLIENT_ID` in `apps/api/.env` **and** on Render.
 
 ## 6. Team (admin) accounts

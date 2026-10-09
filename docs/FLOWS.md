@@ -112,43 +112,42 @@ sequenceDiagram
 
 ### 1.2 Continue with Google
 
-**Pages:** the same "Continue with Google" button sits at the **top** of `/login` and `/signup`, above "or use your email" (`GoogleButton` in `AuthPages.tsx`).
-- It is **always visible.** The page reads the client id from `GET /api/v1/config` and then draws Google's real button.
-- Until that's ready, a look-alike button is shown. Clicking it explains what's wrong:
-  - "server unreachable" when the API is down (e.g. Atlas blocking your IP);
-  - "still loading";
-  - "not available yet" when `GOOGLE_CLIENT_ID` isn't set on the API;
-  - "Google sign-in failed" when Google's script was blocked.
+**Pages:** the "Continue with Google" button at the **top** of `/login` and `/signup` (`GoogleButton` in `AuthPages.tsx`), and the return page `/auth/google/callback` (`GoogleCallbackPage`).
+It uses a **full-page redirect, not a pop-up**, because pop-up blockers, ad-blockers and Brave Shields often block Google's pop-up ("Failed to open popup window").
 
 ```mermaid
 sequenceDiagram
   actor U as Person
   participant W as GoogleButton (web)
-  participant G as Google
+  participant G as Google sign-in page
+  participant C as /auth/google/callback (web)
   participant A as API POST /auth/google
-  participant V as providers/google.ts
   U->>W: clicks "Continue with Google"
-  W->>G: Google popup (choose account)
-  G-->>W: credential (signed ID token)
-  W->>A: POST /auth/google { credential }
-  A->>V: verify signature, expiry, audience = our client id
-  alt email not verified at Google
-    A-->>W: 403 googleNotVerified
-  else existing account (same Google id or same email)
+  W->>W: makes random state + nonce, keeps them in this tab (sessionStorage)
+  W->>G: whole page goes to accounts.google.com (client_id, redirect_uri, state, nonce)
+  U->>G: picks a Google account
+  G->>C: back to /auth/google/callback#id_token=…&state=…
+  C->>C: state must match what this tab saved, else stop
+  C->>A: POST /auth/google { credential: id_token, nonce }
+  A->>A: verify token with Google's keys (audience = our client id), nonce must match
+  alt new person
+    A->>A: create account (no password, email verified, role = null)
+  else existing account (same Google id or email)
     A->>A: link Google id, mark email verified
-    A-->>W: 200 { accessToken, user } + cookie
-  else new person
-    A->>A: create User (no password, role = null, email verified)
-    A-->>W: 200 { accessToken, user } + cookie
   end
-  W->>U: navigate: no role → /welcome/role, otherwise their area
+  A-->>C: { accessToken, user } + refresh cookie
+  C->>U: no role → /welcome/role, otherwise their area
 ```
 
-| ✅ Success | ❌ Failure |
+| ✅ Success | ❌ Failure (shown on the callback page, with "Back to log in") |
 |---|---|
-| New account: `/welcome/role`. Existing: their area | "Google sign-in failed" (bad or expired token), "This Google account email is not verified", "Google sign-in is not available yet" (no client id). Team (admin) emails are refused here: they must use the admin panel. |
+| New account → `/welcome/role`; existing → their area | Cancelled at Google → "Google sign-in was cancelled". Wrong/old/replayed token or state mismatch → "Google sign-in failed". Unverified Google email → "not verified". Team (admin) email → "This Google account is a Bluenova team account…". No `GOOGLE_CLIENT_ID` on the API → "not available yet". |
 
-No 6-digit code is needed, because Google has already proven the person owns the email. By continuing, the person accepts the terms (the text under the button says so) and consent is recorded on the account.
+**Google Cloud settings this needs** (Clients → your Web client):
+- **Authorized JavaScript origins:** `https://creator-hub-mu-five.vercel.app`, `http://localhost:5180`.
+- **Authorized redirect URIs:** `https://creator-hub-mu-five.vercel.app/auth/google/callback`, `http://localhost:5180/auth/google/callback`.
+
+No 6-digit code is needed, because Google has already proven the email. By continuing, the person accepts the terms (the text under the form says so); consent is recorded on the account.
 
 ### 1.3 "What brings you to Bluenova?" (role choice)
 

@@ -152,17 +152,22 @@ authRouter.post('/signup/resend-otp', rateLimits.emailLinks, validate({ body: ti
 
 /* ---------- Continue with Google ---------- */
 
-// `credential` is the signed ID token Google's button gives the browser. We verify it with Google's keys.
-const googleSchema = z.object({ credential: z.string().min(100).max(5000) });
+// `credential` = the signed ID token Google sent back to the website; `nonce` = the random value the website put
+// into that sign-in request. Both must match, so an old or stolen token can't be replayed.
+const googleSchema = z.object({
+  credential: z.string().min(100).max(5000),
+  nonce: z.string().regex(/^[A-Za-z0-9_-]{20,100}$/),
+});
 
 /**
- * POST /auth/google  { credential }
+ * POST /auth/google  { credential, nonce }  (sent by the website's /auth/google/callback page)
  * Verifies the Google token, then: existing account (same Google id or same email) → logged in;
  * new person → account created (email already verified by Google, no role yet) → logged in.
  */
 authRouter.post('/google', rateLimits.login, validate({ body: googleSchema }), h(async (req, res) => {
-  const { credential } = input<{ credential: string }>(req);
+  const { credential, nonce } = input<{ credential: string; nonce: string }>(req);
   const g = await verifyGoogleCredential(credential);
+  if (g.nonce !== nonce) throw new AppError('UNAUTHENTICATED', 'errors.googleFailed');
   if (!g.emailVerified) throw new AppError('FORBIDDEN', 'errors.googleNotVerified');
   let user = await UserModel.findOne({ $or: [{ googleId: g.sub }, { email: g.email }] });
   if (user) {

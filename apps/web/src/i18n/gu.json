@@ -257,7 +257,10 @@
     "continueGoogle": "Google થી આગળ વધો",
     "orEmail": "અથવા તમારા email થી",
     "googleLoading": "Google sign-in હજુ load થઈ રહ્યું છે. થોડી વારમાં ફરી પ્રયાસ કરો.",
-    "serverWaking": "Server શરૂ થઈ રહ્યું છે… થોડા સમય પછી પહેલી વાર એક મિનિટ જેટલો સમય લાગે. તમે લખવાનું ચાલુ રાખી શકો છો."
+    "serverWaking": "Server શરૂ થઈ રહ્યું છે… થોડા સમય પછી પહેલી વાર એક મિનિટ જેટલો સમય લાગે. તમે લખવાનું ચાલુ રાખી શકો છો.",
+    "googleSigningIn": "Google થી log in થઈ રહ્યું છે…",
+    "pleaseWait": "થોડી ક્ષણ રાહ જુઓ.",
+    "googleProblemTitle": "Google થી log in થઈ શક્યું નહીં"
   },
   "status": {
     "creator": {
@@ -805,7 +808,8 @@
     "googleFailed": "Google sign-in નિષ્ફળ થયું. ફરી પ્રયાસ કરો.",
     "googleNotVerified": "આ Google account નું email verify થયેલું નથી.",
     "googleNotConfigured": "Google sign-in હજુ ઉપલબ્ધ નથી.",
-    "googleTeamAccount": "આ Google account Bluenova team (admin) નું account છે. Team members admin panel માં log in કરે છે. Website અજમાવવા બીજું Google account અથવા email વાપરો."
+    "googleTeamAccount": "આ Google account Bluenova team (admin) નું account છે. Team members admin panel માં log in કરે છે. Website અજમાવવા બીજું Google account અથવા email વાપરો.",
+    "googleCancelled": "Google sign-in રદ થયું. ફરી પ્રયાસ કરો અથવા તમારું email વાપરો."
   },
   "footer": {
     "tagline": "Brands અને creators વચ્ચે collaboration માટેનું platform.",
