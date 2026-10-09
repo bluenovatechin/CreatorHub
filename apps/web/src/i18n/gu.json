@@ -804,7 +804,8 @@
     "otpCooldown": "બીજો code માંગતા પહેલા એક મિનિટ રાહ જુઓ.",
     "googleFailed": "Google sign-in નિષ્ફળ થયું. ફરી પ્રયાસ કરો.",
     "googleNotVerified": "આ Google account નું email verify થયેલું નથી.",
-    "googleNotConfigured": "Google sign-in હજુ ઉપલબ્ધ નથી."
+    "googleNotConfigured": "Google sign-in હજુ ઉપલબ્ધ નથી.",
+    "googleTeamAccount": "આ Google account Bluenova team (admin) નું account છે. Team members admin panel માં log in કરે છે. Website અજમાવવા બીજું Google account અથવા email વાપરો."
   },
   "footer": {
     "tagline": "Brands અને creators વચ્ચે collaboration માટેનું platform.",

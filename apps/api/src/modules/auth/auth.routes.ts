@@ -166,7 +166,8 @@ authRouter.post('/google', rateLimits.login, validate({ body: googleSchema }), h
   if (!g.emailVerified) throw new AppError('FORBIDDEN', 'errors.googleNotVerified');
   let user = await UserModel.findOne({ $or: [{ googleId: g.sub }, { email: g.email }] });
   if (user) {
-    if (user.role === 'admin') throw new AppError('UNAUTHENTICATED', 'errors.badCredentials'); // admins use the admin panel
+    // Team accounts use the admin panel. Saying so is safe here: Google has just proven this person owns the email.
+    if (user.role === 'admin') throw new AppError('FORBIDDEN', 'errors.googleTeamAccount');
     if (user.status !== 'active') throw new AppError('FORBIDDEN', 'errors.accountInactive');
     // Google has proven this person owns the email, so linking and verifying is safe.
     user.googleId ??= g.sub;

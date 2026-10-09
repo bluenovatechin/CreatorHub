@@ -170,7 +170,8 @@ describe('continue with Google', () => {
     await request(app).post('/api/v1/auth/google').send({ credential }).expect(403);
     const admin = await loginAdmin('reviewer');
     fakeGoogle({ sub: 'google-4', email: admin.email });
-    await request(app).post('/api/v1/auth/google').send({ credential }).expect(401);
+    const team = await request(app).post('/api/v1/auth/google').send({ credential }).expect(403);
+    expect(team.body.error.message).toBe('errors.googleTeamAccount');
   });
 
   it('a new Google user without a role is sent to choose one', async () => {
