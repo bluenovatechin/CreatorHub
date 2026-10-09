@@ -4,7 +4,7 @@ services:
   - type: web
     name: bluenova-api
     runtime: node
-    region: singapore          # closest Render region to India
+    region: singapore # closest Render region to India
     plan: free
     buildCommand: npm ci --include=dev && npm run build -w @bluenova/api
     startCommand: npm run start -w @bluenova/api
@@ -27,9 +27,9 @@ services:
         value: "true"
       # The two Vercel website addresses (change here if Vercel gives you different names):
       - key: CORS_ORIGINS
-        value: https://bluenova-creatorhub.vercel.app,https://bluenova-admin.vercel.app
+        value: https://creator-hub-mu-five.vercel.app,https://bluenova-admin.vercel.app
       - key: APP_BASE_URL
-        value: https://bluenova-creatorhub.vercel.app
+        value: https://creator-hub-mu-five.vercel.app
       - key: ADMIN_BASE_URL
         value: https://bluenova-admin.vercel.app
       # Visitors reach the API through Vercel, then Render: 2 proxies.
@@ -51,4 +51,7 @@ services:
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASS
+        sync: false
+      # Brevo (EMAIL_PROVIDER=brevo): works on Render's free plan, which blocks Gmail's mail ports
+      - key: BREVO_API_KEY
         sync: false
