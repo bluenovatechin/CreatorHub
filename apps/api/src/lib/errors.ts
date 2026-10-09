@@ -1,3 +1,8 @@
+/**
+ * THE ONE ERROR TYPE the API throws on purpose: `new AppError('NOT_FOUND')`.
+ * Each code maps to an HTTP status (below). `message` is a translation key like 'errors.badCredentials'
+ * that the website turns into English/Gujarati text. middleware/errors.ts turns it into the JSON reply.
+ */
 export type ErrorCode =
   | 'UNAUTHENTICATED' | 'FORBIDDEN' | 'NOT_FOUND' | 'VALIDATION_ERROR' | 'INVALID_STATE'
   | 'CONFLICT' | 'RATE_LIMITED' | 'INVALID_OTP' | 'STEP_UP_REQUIRED' | 'INTERNAL';

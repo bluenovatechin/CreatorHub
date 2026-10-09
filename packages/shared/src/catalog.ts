@@ -1,3 +1,6 @@
+/**
+ * CATEGORIES and CITIES (with English + Gujarati names), Indian states and GST state codes.
+ */
 export interface CatalogItem {
   key: string;
   en: string;

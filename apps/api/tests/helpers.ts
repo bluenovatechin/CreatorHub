@@ -1,3 +1,7 @@
+/**
+ * TEST HELPERS: a fresh in-memory database per test file, unique test emails, and shortcuts that walk
+ * through real flows (signup → code → role, admin password → authenticator code).
+ */
 import { authenticator } from 'otplib';
 import mongoose from 'mongoose';
 import request from 'supertest';
@@ -47,14 +51,19 @@ export function lastEmailCode(to: string): string {
   return msg.code!;
 }
 
-/** Signs up, types the emailed 6-digit code on the same page and gets a session (straight to the dashboard). */
+/**
+ * The full real-user journey: sign up (name/email/password) → type the emailed 6-digit code → logged in →
+ * choose "creator" or "brand" on the next screen.
+ */
 export async function signup(role: 'creator' | 'brand', name = role === 'creator' ? 'Riya Shah' : 'Asha Patel') {
   const email = nextEmail();
   const agent = request.agent(app);
   const s = await agent.post('/api/v1/auth/signup')
-    .send({ name, email, password: PASSWORD, confirmPassword: PASSWORD, role, acceptTerms: true }).expect(201);
+    .send({ name, email, password: PASSWORD, confirmPassword: PASSWORD, acceptTerms: true }).expect(201);
   const res = await agent.post('/api/v1/auth/signup/verify-otp').send({ ticket: s.body.data.ticket, code: lastEmailCode(email) }).expect(200);
-  return { agent, token: res.body.data.accessToken as string, email };
+  const token = res.body.data.accessToken as string;
+  await agent.post('/api/v1/auth/role').set('Authorization', `Bearer ${token}`).send({ role }).expect(200);
+  return { agent, token, email };
 }
 
 /** Creates an admin with password + TOTP and logs in through both steps. */

@@ -1,3 +1,9 @@
+/**
+ * USERS collection: one document per account (creator, brand, not-yet-chosen, or team member).
+ * Holds login data only. Creator/brand details live in creatorProfile.ts / brandProfile.ts.
+ * Secret fields have `select: false` and are only loaded when explicitly asked for.
+ * Field-by-field explanation: docs/DATA_MODELS.md.
+ */
 import { Schema, model, type InferSchemaType, type HydratedDocument } from 'mongoose';
 import { ADMIN_ROLES, ROLES, UI_LANGUAGES } from '@bluenova/shared';
 

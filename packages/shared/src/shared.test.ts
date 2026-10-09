@@ -1,3 +1,6 @@
+/**
+ * TESTS for the shared rules (validators, schemas, money, state machines).
+ */
 import { describe, expect, it } from 'vitest';
 import {
   campaignMachine, canTransition, creatorDecisionSchema, creatorMachine, creatorStep1Schema,
@@ -141,7 +144,7 @@ describe('real-world validators', () => {
     expect(passwordProblem('Monsoon-Chai-42')).toBeNull();
   });
   it('validates signup', () => {
-    const base = { name: 'Riya Shah', email: 'riya@gmail.com', password: 'Monsoon-Chai-42', confirmPassword: 'Monsoon-Chai-42', role: 'creator', acceptTerms: true };
+    const base = { name: 'Riya Shah', email: 'riya@gmail.com', password: 'Monsoon-Chai-42', confirmPassword: 'Monsoon-Chai-42', acceptTerms: true };
     expect(signupSchema.safeParse(base).success).toBe(true);
     expect(signupSchema.safeParse({ ...base, confirmPassword: 'other-pass-42' }).success).toBe(false);
     expect(signupSchema.safeParse({ ...base, email: 'x@mailinator.com' }).success).toBe(false);

@@ -1,3 +1,9 @@
+/**
+ * CREATOR PROFILES collection: one per creator account (created when they choose "creator").
+ * Filled in during onboarding (5 steps), then reviewed by the team.
+ * Status flow: DRAFT → SUBMITTED → UNDER_REVIEW → APPROVED / CHANGES_REQUESTED / REJECTED (see stateMachines.ts).
+ * `phone`, `internalNotes`, `internalTags` are never shown to brands.
+ */
 import { Schema, model, type InferSchemaType, type HydratedDocument } from 'mongoose';
 import {
   AGE_GROUPS, CATEGORY_KEYS, CITY_KEYS, CREATOR_STATUSES, FOLLOWER_BANDS, GENDERS, LANGUAGES, REVIEW_REASON_CODES,

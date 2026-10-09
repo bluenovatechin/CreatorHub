@@ -1,3 +1,7 @@
+/**
+ * DATABASE CONNECTION (MongoDB via Mongoose). Called by server.ts at startup and by scripts/tests.
+ * `strictQuery` makes Mongoose ignore unknown filter fields (a safety net against query injection).
+ */
 import mongoose from 'mongoose';
 import { env } from './config/env';
 import { logger } from './lib/logger';

@@ -1,3 +1,7 @@
+/**
+ * STATE MACHINES: for each object (creator, campaign, offer, deal) the allowed status changes and WHO
+ * may make each one. The API refuses any other change (lib/transition.ts). Diagrams: docs/DATA_MODELS.md.
+ */
 import type {
   AdminRole, CampaignStatus, CreatorStatus, DealStatus, OfferStatus,
 } from './enums';

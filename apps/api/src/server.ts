@@ -1,3 +1,8 @@
+/**
+ * API ENTRY POINT (npm run dev / npm start runs this file).
+ * Order: connect to MongoDB (retrying with a clear message) → build the Express app (app.ts) → listen on PORT
+ * → start background jobs (jobs/scheduler.ts). Ctrl+C / SIGTERM closes everything cleanly.
+ */
 import { env } from './config/env';
 import { createApp } from './app';
 import { connectDb, disconnectDb } from './db';

@@ -1,3 +1,7 @@
+/**
+ * CREATOR AREA: status page (waiting for review / changes requested / rejected), dashboard,
+ * intro reel task, opportunities, offers (accept/decline) and deals.
+ */
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';

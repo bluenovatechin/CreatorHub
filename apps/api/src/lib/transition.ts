@@ -1,3 +1,8 @@
+/**
+ * STATUS CHANGES: the ONLY way code changes a creator/campaign/offer/deal status.
+ * It asks the state machine (packages/shared/src/stateMachines.ts) whether this move is allowed for this
+ * actor, and records the change in statusHistory. Not allowed → 409 INVALID_STATE.
+ */
 import type { Types } from 'mongoose';
 import { canTransition, type Actor, type Machine } from '@bluenova/shared';
 import { invalidState } from './errors';

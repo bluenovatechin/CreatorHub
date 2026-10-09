@@ -1,3 +1,10 @@
+/**
+ * ALL WEBSITE PAGES (URL → page component). Guards decide who may open a page:
+ *   GuestOnly        logged-in people are sent to their area (e.g. /login while logged in → dashboard)
+ *   RequireSignedIn  must be logged in (else → /login?next=...)
+ *   RequireRole      must be a creator (or brand); others are sent to their own home
+ * Page-by-page flow: docs/FLOWS.md.
+ */
 import type { ReactNode } from 'react';
 import { Navigate, createBrowserRouter, useLocation } from 'react-router-dom';
 import { Loading } from '@bluenova/ui';
@@ -55,8 +62,9 @@ export const router = createBrowserRouter([
   { path: '/forgot-password', element: <GuestOnly><ForgotPasswordPage /></GuestOnly> },
   { path: '/reset-password', element: <ResetPasswordPage /> },
   { path: '/welcome/role', element: <RequireSignedIn><RoleSelectPage /></RequireSignedIn> },
-  { path: '/join/creator', element: <Navigate to="/signup?role=creator" replace /> },
-  { path: '/join/brand', element: <Navigate to="/signup?role=brand" replace /> },
+  // Old shared links keep working. (The creator/brand choice now happens after login, on /welcome/role.)
+  { path: '/join/creator', element: <Navigate to="/signup" replace /> },
+  { path: '/join/brand', element: <Navigate to="/signup" replace /> },
   {
     path: '/creator',
     element: <RequireRole role="creator"><AppLayout area="creator" /></RequireRole>,

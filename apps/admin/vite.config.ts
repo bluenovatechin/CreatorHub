@@ -1,3 +1,6 @@
+/**
+ * ADMIN PANEL DEV SERVER SETTINGS (http://localhost:5181). /api is forwarded to the local API (localhost:4000).
+ */
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 

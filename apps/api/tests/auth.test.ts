@@ -1,3 +1,7 @@
+/**
+ * TESTS: accounts & security — signup validation, email codes, Google, login lockout, password reset,
+ * sessions, role separation, admin login, audit log, admin → users.
+ */
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { authenticator } from 'otplib';
@@ -14,7 +18,7 @@ useDatabase('auth_tests');
 const cookieOf = (res: request.Response, name: string) =>
   ([] as string[]).concat(res.headers['set-cookie'] ?? []).find((c) => c.startsWith(`${name}=`));
 const signupBody = (email: string, extra: Record<string, unknown> = {}) =>
-  ({ name: 'Riya Shah', email, password: PASSWORD, confirmPassword: PASSWORD, role: 'creator', acceptTerms: true, ...extra });
+  ({ name: 'Riya Shah', email, password: PASSWORD, confirmPassword: PASSWORD, acceptTerms: true, ...extra });
 
 describe('signup and email verification', () => {
   it('validates every field', async () => {
@@ -30,7 +34,6 @@ describe('signup and email verification', () => {
     expect(await bad({ password: 'short1', confirmPassword: 'short1' })).toHaveProperty('password', 'errors.passwordShort');
     expect(await bad({ password: 'password123', confirmPassword: 'password123' })).toHaveProperty('password', 'errors.passwordCommon');
     expect(await bad({ confirmPassword: 'Different-Pass-9' })).toHaveProperty('confirmPassword', 'errors.passwordMismatch');
-    expect(await bad({ role: 'admin' })).toHaveProperty('role');
     expect(await bad({ acceptTerms: false })).toHaveProperty('acceptTerms');
   });
 
@@ -47,7 +50,11 @@ describe('signup and email verification', () => {
     const bad = await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: s.body.data.ticket, code: wrong }).expect(400);
     expect(bad.body.error.message).toBe('errors.otpInvalid');
     const ok = await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: s.body.data.ticket, code }).expect(200);
-    expect(ok.body.data.user.role).toBe('creator'); // the frontend sends them to their dashboard
+    expect(ok.body.data.user.role).toBeNull(); // the frontend now shows "creator or brand?"
+    const chosen = await request(app).post('/api/v1/auth/role').set(bearer(ok.body.data.accessToken)).send({ role: 'creator' }).expect(200);
+    expect(chosen.body.data.user.role).toBe('creator');
+    // The choice is one-time: nobody can switch themselves to another role later.
+    await request(app).post('/api/v1/auth/role').set(bearer(ok.body.data.accessToken)).send({ role: 'brand' }).expect(409);
     await request(app).get('/api/v1/me').set(bearer(ok.body.data.accessToken)).expect(200);
     expect((await UserModel.findOne({ email }).lean())!.emailVerifiedAt).toBeTruthy(); // stored as verified
     // Code and ticket are single use.
@@ -85,6 +92,15 @@ describe('signup and email verification', () => {
     await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: login.body.data.ticket, code: lastEmailCode(email) }).expect(400);
   });
 
+  it('ignores a role (or any other extra field) sent with signup: nobody can make themselves an admin', async () => {
+    const email = nextEmail();
+    const s = await request(app).post('/api/v1/auth/signup').send(signupBody(email, { role: 'admin', adminRole: 'super_admin' })).expect(201);
+    const ok = await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: s.body.data.ticket, code: lastEmailCode(email) }).expect(200);
+    expect(ok.body.data.user.role).toBeNull();
+    expect(ok.body.data.user.adminRole).toBeNull();
+    await request(app).post('/api/v1/auth/role').set(bearer(ok.body.data.accessToken)).send({ role: 'admin' }).expect(400);
+  });
+
   it('signing up again before verifying sends a fresh code, and the new details apply only after the code', async () => {
     const email = nextEmail();
     await request(app).post('/api/v1/auth/signup').send(signupBody(email)).expect(201);
@@ -92,11 +108,10 @@ describe('signup and email verification', () => {
     await EmailTokenModel.collection.updateMany({ purpose: 'verify_otp' }, { $set: { createdAt: new Date(Date.now() - 120_000) } });
     const NEW_PASSWORD = 'Monsoon-Vadodara-42';
     const again = await request(app).post('/api/v1/auth/signup')
-      .send(signupBody(email, { name: 'Asha Patel', role: 'brand', password: NEW_PASSWORD, confirmPassword: NEW_PASSWORD })).expect(201);
+      .send(signupBody(email, { name: 'Asha Patel', password: NEW_PASSWORD, confirmPassword: NEW_PASSWORD })).expect(201);
     // Not applied yet: the first password still applies (and the account still needs verifying).
     await request(app).post('/api/v1/auth/login').send({ email, password: NEW_PASSWORD }).expect(401);
     const ok = await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: again.body.data.ticket, code: lastEmailCode(email) }).expect(200);
-    expect(ok.body.data.user.role).toBe('brand');
     expect(ok.body.data.user.name).toBe('Asha Patel');
     await request(app).post('/api/v1/auth/login').send({ email, password: NEW_PASSWORD }).expect(200);
     await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(401);
@@ -131,17 +146,19 @@ describe('continue with Google', () => {
   const credential = 'g'.repeat(200);
   afterEach(() => setGoogleVerifierForTests(null));
 
-  it('creates a verified account with the chosen role and signs in', async () => {
+  it('creates a verified account, signs in, and the role is chosen on the next screen', async () => {
     const email = nextEmail();
     fakeGoogle({ sub: 'google-1', email, name: 'Meera Joshi' });
-    const r = await request(app).post('/api/v1/auth/google').send({ credential, role: 'brand' }).expect(200);
-    expect(r.body.data.user.role).toBe('brand');
+    const r = await request(app).post('/api/v1/auth/google').send({ credential }).expect(200);
+    expect(r.body.data.user.role).toBeNull();
+    await request(app).post('/api/v1/auth/role').set(bearer(r.body.data.accessToken)).send({ role: 'brand' }).expect(200);
     const u = await UserModel.findOne({ email }).lean();
     expect(u!.emailVerifiedAt).toBeTruthy();
     expect(u!.googleId).toBe('google-1');
     // Signing in again finds the same account.
     const again = await request(app).post('/api/v1/auth/google').send({ credential }).expect(200);
     expect(again.body.data.user.id).toBe(r.body.data.user.id);
+    expect(again.body.data.user.role).toBe('brand');
   });
 
   it('links Google to an existing email account, and rejects unverified Google emails and admins', async () => {
@@ -325,5 +342,47 @@ describe('audit log', () => {
     const entry = await AuditLogModel.create({ action: 'test', entityType: 'Test' });
     await expect(AuditLogModel.updateOne({ _id: entry._id }, { $set: { action: 'changed' } })).rejects.toThrow(/append-only/);
     await expect(AuditLogModel.deleteOne({ _id: entry._id })).rejects.toThrow(/append-only/);
+  });
+});
+
+describe('admin → users', () => {
+  it('lets a super admin see every account (never a password or hash), set a new password and suspend', async () => {
+    const creator = await signup('creator');
+    const admin = await loginAdmin('super_admin');
+    const list = await request(app).get('/api/v1/admin/users?role=creator').set(bearer(admin.token)).expect(200);
+    const row = list.body.data.find((u: { email: string }) => u.email === creator.email);
+    expect(row.role).toBe('creator');
+    expect(row.signIn).toEqual({ password: true, google: false });
+    expect(JSON.stringify(list.body)).not.toMatch(/argon2|passwordHash/);
+    expect(list.body.meta.counts.creator).toBeGreaterThan(0);
+
+    const detail = await request(app).get(`/api/v1/admin/users/${row.id}`).set(bearer(admin.token)).expect(200);
+    expect(detail.body.data.creator).toBeTruthy();
+    expect(JSON.stringify(detail.body)).not.toMatch(/argon2|passwordHash|totpSecret/);
+
+    // Set a new password: the user is logged out everywhere and can log in with the new one.
+    const NEW = 'Kite-Festival-Rajkot-14';
+    await request(app).post(`/api/v1/admin/users/${row.id}/password`).set(bearer(admin.token)).send({ password: NEW, reason: 'testing' }).expect(200);
+    await request(app).get('/api/v1/me').set(bearer(creator.token)).expect(401);
+    await request(app).post('/api/v1/auth/login').send({ email: creator.email, password: NEW }).expect(200);
+    expect(consoleEmail.sent.at(-1)!.to).toBe(creator.email); // "your password was changed" heads-up
+
+    // Suspend: login refused; re-activate: works again. Every change is in the audit log.
+    await request(app).post(`/api/v1/admin/users/${row.id}/status`).set(bearer(admin.token)).send({ status: 'suspended', reason: 'testing' }).expect(200);
+    await request(app).post('/api/v1/auth/login').send({ email: creator.email, password: NEW }).expect(403);
+    await request(app).post(`/api/v1/admin/users/${row.id}/status`).set(bearer(admin.token)).send({ status: 'active', reason: 'testing' }).expect(200);
+    await request(app).post('/api/v1/auth/login').send({ email: creator.email, password: NEW }).expect(200);
+    const actions = (await AuditLogModel.find({ entityId: row.id }).lean()).map((a) => a.action);
+    expect(actions).toEqual(expect.arrayContaining(['user.view', 'user.password_set', 'user.suspend', 'user.reactivate']));
+  });
+
+  it('is for super admins only, and cannot touch team accounts', async () => {
+    const reviewer = await loginAdmin('reviewer');
+    await request(app).get('/api/v1/admin/users').set(bearer(reviewer.token)).expect(403);
+    const creator = await signup('creator');
+    await request(app).get('/api/v1/admin/users').set(bearer(creator.token)).expect(401);
+    const admin = await loginAdmin('super_admin');
+    const team = await UserModel.findOne({ email: reviewer.email }).lean();
+    await request(app).post(`/api/v1/admin/users/${team!._id}/password`).set(bearer(admin.token)).send({ password: 'Kite-Festival-Rajkot-14', reason: 'x-test' }).expect(403);
   });
 });

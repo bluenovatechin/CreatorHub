@@ -1,3 +1,8 @@
+/**
+ * ADMIN ROUTES (/api/v1/admin/*). Everything here needs an admin login (password + authenticator).
+ * Each route also says which team role may use it (requireAdmin). Covers: dashboard counts, creator review,
+ * brands, campaigns (claim, matches, shortlist), audit log. Also mounts admin payments and admin → users.
+ */
 import { Router } from 'express';
 import { z } from 'zod';
 import {
@@ -22,6 +27,7 @@ import { PaymentModel } from '../../models/payment';
 import { UserModel } from '../../models/user';
 import { notificationsRouter } from '../deals/deals.routes';
 import { adminPaymentsRouter } from '../payments/payments.routes';
+import { adminUsersRouter } from './users.routes';
 import { meRouter } from '../auth/auth.routes';
 import {
   brandAdminView, campaignAdminView, creatorAdminView, dealAdminView, offerAdminView, shortlistAdminView,
@@ -32,6 +38,7 @@ adminRouter.use(authenticate('admin'), rateLimits.authed);
 adminRouter.use('/me', meRouter);
 adminRouter.use('/notifications', notificationsRouter);
 adminRouter.use(adminPaymentsRouter);
+adminRouter.use(adminUsersRouter); // /admin/users (super_admin only)
 
 const idParams = validate({ params: z.object({ id: objectId }) });
 

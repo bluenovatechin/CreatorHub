@@ -1,3 +1,6 @@
+/**
+ * FIXED LISTS: roles, team roles, statuses for every object, languages, deliverable types, etc.
+ */
 export const ROLES = ['creator', 'brand', 'admin'] as const;
 export type Role = (typeof ROLES)[number];
 

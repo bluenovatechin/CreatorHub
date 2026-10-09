@@ -1,3 +1,7 @@
+/**
+ * ADMIN FINANCE + SETTINGS: payments to verify (only when payments are ON), payments on/off switch,
+ * bank/UPI details, and changing your own admin password.
+ */
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';

@@ -1,3 +1,7 @@
+/**
+ * BUILD SETTINGS for production (npm run build → dist/). Bundles the API and the one-off scripts
+ * into plain JavaScript that Render runs with `npm start`.
+ */
 import { defineConfig } from 'tsup';
 
 // Production bundle for hosting (e.g. Render): `npm run build -w @bluenova/api`, then `npm start -w @bluenova/api`.

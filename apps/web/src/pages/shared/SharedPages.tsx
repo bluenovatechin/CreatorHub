@@ -1,3 +1,6 @@
+/**
+ * PAGES BOTH CREATORS AND BRANDS HAVE: notifications, and settings (change password, log out everywhere).
+ */
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';

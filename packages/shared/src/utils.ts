@@ -1,3 +1,6 @@
+/**
+ * SMALL HELPERS: follower band from follower count, safe redirect paths, India-time dates, hiding contact details in text.
+ */
 import type { FollowerBand } from './enums';
 
 export function followerBand(followers: number): FollowerBand {
@@ -28,12 +31,6 @@ export function todayIST(now: Date = new Date()): string {
 
 export function istDateToUtc(date: string): Date {
   return new Date(`${date}T00:00:00+05:30`);
-}
-
-export function maskPhone(e164: string): string {
-  const digits = e164.replace(/\D/g, '').slice(-10);
-  if (digits.length !== 10) return '••••••••••';
-  return `+91 ${digits.slice(0, 2)}XXXXXX${digits.slice(8)}`;
 }
 
 /** Replace contact details in free text (used for chat and notes shared between brand and creator). */

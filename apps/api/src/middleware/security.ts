@@ -1,3 +1,10 @@
+/**
+ * REQUEST-LEVEL SECURITY:
+ *   requestId     gives each request an id (shown in errors, useful for support)
+ *   noStore       tells browsers/proxies never to cache API answers
+ *   originCheck   blocks requests from websites that aren't ours (CSRF protection)
+ *   rateLimits    how many requests one visitor may make (e.g. 10 signups/hour, 30 logins/15 min)
+ */
 import crypto from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';

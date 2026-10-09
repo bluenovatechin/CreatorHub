@@ -1,3 +1,8 @@
+/**
+ * LOGGING (pino). Production: JSON lines on Render's log tab. Development: quiet, only warnings/errors.
+ * REDACT_PATHS lists fields that are blanked out before anything is written, so passwords, tokens, codes
+ * and phone numbers never end up in logs.
+ */
 import pino from 'pino';
 import { env } from '../config/env';
 
@@ -8,6 +13,7 @@ export const REDACT_PATHS = [
   'res.headers["set-cookie"]',
   '*.otp', '*.code', '*.pan', '*.account', '*.vpa', '*.password', '*.token',
   '*.accessToken', '*.refreshToken', '*.mfaToken', '*.phone', '*.totpSecret',
+  '*.passwordHash', '*.currentPassword', '*.confirmPassword', '*.ticket', '*.credential', '*.codeHash', '*.tokenHash',
 ];
 
 export const logger = pino({

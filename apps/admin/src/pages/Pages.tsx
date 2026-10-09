@@ -1,3 +1,7 @@
+/**
+ * ADMIN WORK SCREENS: dashboard (work queues), creators (review: claim → decide), campaigns
+ * (claim → shortlist creators → send to brand → start), audit log.
+ */
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -11,7 +15,8 @@ import { api, can, date, errorText, label, rupees, tone, useAdmin, useFeatures }
 const cat = (k: string) => catalogLabel(CATEGORIES, k, 'en');
 const city = (k: string | null) => (k ? catalogLabel(CITIES, k, 'en') : '—');
 
-function useAction<T = unknown>(fn: () => Promise<T>, invalidate: unknown[][]) {
+/** Wraps a button action: shows its error, and refreshes the listed queries when it succeeds. */
+export function useAction<T = unknown>(fn: () => Promise<T>, invalidate: unknown[][]) {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const m = useMutation({
@@ -23,11 +28,13 @@ function useAction<T = unknown>(fn: () => Promise<T>, invalidate: unknown[][]) {
   return { ...m, error };
 }
 
-function Status({ s }: { s: string }) {
+/** Coloured status pill (e.g. SUBMITTED, APPROVED). */
+export function Status({ s }: { s: string }) {
   return <Badge tone={tone(s)}>{label(s)}</Badge>;
 }
 
-function QState({ q }: { q: { isLoading: boolean; error: unknown; refetch: () => unknown } }) {
+/** Loading spinner or error-with-retry for a query. Renders nothing once data is ready. */
+export function QState({ q }: { q: { isLoading: boolean; error: unknown; refetch: () => unknown } }) {
   if (q.isLoading) return <Loading />;
   if (q.error) return <Alert tone="red" title={errorText(q.error)}><Button size="sm" variant="secondary" className="mt-2" onClick={() => q.refetch()}>Retry</Button></Alert>;
   return null;

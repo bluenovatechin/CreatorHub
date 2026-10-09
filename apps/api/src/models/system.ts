@@ -1,3 +1,9 @@
+/**
+ * SYSTEM collections:
+ *   Notification  the bell-icon messages
+ *   AuditLog      append-only record of important actions (edits/deletes are blocked in code)
+ *   Settings      one global document: margins, GST rate, payments on/off, bank details
+ */
 import { Schema, model, type InferSchemaType } from 'mongoose';
 
 /* ---------- Notifications (text rendered on the client from i18n keys + params) ---------- */

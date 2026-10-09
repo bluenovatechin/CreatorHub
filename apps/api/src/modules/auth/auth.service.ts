@@ -1,3 +1,9 @@
+/**
+ * AUTH BUSINESS LOGIC used by auth.routes.ts (and admin → users):
+ * passwords (argon2id hashing), login lockout, one-time email secrets (reset links, 6-digit codes, tickets),
+ * admin authenticator codes (TOTP), and sessions (refresh-token cookies + short access tokens).
+ * Security reasoning for each part: docs/SECURITY.md.
+ */
 import crypto from 'node:crypto';
 import argon2 from 'argon2';
 import type { CookieOptions, Request, Response } from 'express';
@@ -9,6 +15,7 @@ import { logger } from '../../lib/logger';
 import { signAccessToken } from '../../lib/tokens';
 import { invalidateUser } from '../../lib/userCache';
 import { EmailTokenModel, LoginThrottleModel, RefreshTokenModel } from '../../models/auth';
+import { emails, sendInBackground } from '../../providers/email';
 import { UserModel, type UserDoc } from '../../models/user';
 
 export type SessionKind = 'user' | 'admin';
@@ -34,6 +41,21 @@ export async function verifyPassword(hash: string | null | undefined, password: 
   } catch {
     return false;
   }
+}
+
+/**
+ * Sets a new password (used by: reset link, "change password", and an admin setting it for a user).
+ * Side effects, all on purpose: every device is logged out, login lockouts are cleared,
+ * and the owner gets a "your password was changed" email so they notice if it wasn't them.
+ */
+export async function setPassword(user: UserDoc, password: string) {
+  user.passwordHash = await hashPassword(password);
+  user.passwordChangedAt = new Date();
+  user.emailVerifiedAt ??= new Date(); // reset links prove email ownership
+  await user.save();
+  await endAllSessions(String(user._id), 'password_changed');
+  await clearLoginFailures(user.email);
+  sendInBackground(emails.passwordChanged(user.email, user.name));
 }
 
 /* ---------------- login throttling (per email, whether or not it exists) ---------------- */
@@ -87,9 +109,11 @@ export async function checkCredentials(email: string, password: string): Promise
 
 /* ---------------- email links ---------------- */
 
-const LINK_TTL = { verify_email: 24 * 3_600_000, reset_password: 60 * 60_000, signup_ticket: 60 * 60_000 } as const;
+/** How long each kind of one-time email secret stays valid. */
+const LINK_TTL = { reset_password: 60 * 60_000, signup_ticket: 60 * 60_000 } as const;
 
-export interface PendingSignup { name: string; role: 'creator' | 'brand'; passwordHash: string }
+/** Details from a repeated, unfinished signup, applied only after the emailed code is entered. */
+export interface PendingSignup { name: string; passwordHash: string }
 
 export async function createEmailToken(userId: unknown, purpose: keyof typeof LINK_TTL, pending?: PendingSignup): Promise<string> {
   // Older unused links for the same purpose stop working. Signup tickets are the exception: each open
@@ -144,19 +168,24 @@ export async function createEmailOtp(userId: unknown): Promise<string> {
 
 /** Checks a code: max 5 tries per code, constant-time compare, single use. */
 export async function checkEmailOtp(userId: string, code: string): Promise<void> {
+  // 1. Find this user's newest unused, unexpired code and count this attempt (atomically, so parallel
+  //    guesses can't sneak past the limit).
   const doc = await EmailTokenModel.findOneAndUpdate(
     { userId, purpose: 'verify_otp', usedAt: null, expiresAt: { $gt: new Date() } },
     { $inc: { attempts: 1 } },
     { sort: { createdAt: -1 }, new: true },
   );
   if (!doc) throw new AppError('VALIDATION_ERROR', 'errors.otpExpired');
+  // 2. Too many tries on this code → burn it; the user must ask for a new one.
   if ((doc.attempts ?? 0) > OTP_MAX_ATTEMPTS) {
     await EmailTokenModel.updateOne({ _id: doc._id }, { $set: { usedAt: new Date() } });
     throw new AppError('VALIDATION_ERROR', 'errors.otpTooMany');
   }
+  // 3. Compare fingerprints in constant time (so response timing reveals nothing about the code).
   if (!doc.codeHash || !timingSafeEqualHex(doc.codeHash, otpHash(userId, code))) {
     throw new AppError('VALIDATION_ERROR', 'errors.otpInvalid');
   }
+  // 4. Mark it used; if another request used it a millisecond earlier, this one fails.
   const used = await EmailTokenModel.updateOne({ _id: doc._id, usedAt: null }, { $set: { usedAt: new Date() } });
   if (used.modifiedCount !== 1) throw new AppError('VALIDATION_ERROR', 'errors.otpInvalid');
 }
@@ -168,7 +197,7 @@ export async function peekSignupTicket(raw: string): Promise<{ userId: string; p
 }
 
 /** Links use the URL fragment (#token=…) so the token never reaches server logs or Referer headers. */
-export function emailLink(path: '/verify-email' | '/reset-password', token: string, area: 'app' | 'admin' = 'app') {
+export function emailLink(path: '/reset-password', token: string, area: 'app' | 'admin' = 'app') {
   return `${area === 'admin' ? env.ADMIN_BASE_URL : env.APP_BASE_URL}${path}#token=${token}`;
 }
 
@@ -227,11 +256,13 @@ export function clearSessionCookie(res: Response, kind: SessionKind) {
  * for parallel tabs) revokes the whole token family: that indicates theft.
  */
 export async function refreshSession(req: Request, res: Response, kind: SessionKind) {
+  // 1. Read the httpOnly cookie the browser sent (JavaScript on the page can't read it).
   const raw: string | undefined = req.cookies?.[COOKIE_NAME[kind]];
   if (!raw || raw.length > 200) throw new AppError('UNAUTHENTICATED');
   const tokenHash = sha256(raw);
   const now = new Date();
 
+  // 2. Normal case: the token is valid → mark it used ("rotated") in the same database step.
   const current = await RefreshTokenModel.findOneAndUpdate(
     { tokenHash, kind, revokedAt: null, expiresAt: { $gt: now } },
     { $set: { revokedAt: now, revokedReason: 'rotated' } },
@@ -244,6 +275,8 @@ export async function refreshSession(req: Request, res: Response, kind: SessionK
     familyId = current.familyId;
     userId = String(current.userId);
   } else {
+    // 3. The token was already used or revoked. Only a token rotated a few seconds ago (two tabs refreshing
+    //    together) is forgiven; any other reuse means it was probably stolen → log out that whole login.
     const old = await RefreshTokenModel.findOne({ tokenHash, kind });
     if (!old || old.expiresAt <= now || old.revokedReason !== 'rotated') {
       clearSessionCookie(res, kind);
@@ -261,6 +294,7 @@ export async function refreshSession(req: Request, res: Response, kind: SessionK
     userId = String(old.userId);
   }
 
+  // 4. Is the person still allowed in (not suspended, right area, email verified)?
   const user = await UserModel.findById(userId);
   const roleOk = kind === 'admin' ? user?.role === 'admin' : user?.role !== 'admin';
   if (!user || user.status !== 'active' || !roleOk || (kind === 'user' && !user.emailVerifiedAt)) {
@@ -268,6 +302,7 @@ export async function refreshSession(req: Request, res: Response, kind: SessionK
     clearSessionCookie(res, kind);
     throw new AppError('UNAUTHENTICATED');
   }
+  // 5. Issue the next cookie (same "family") and a fresh 15-minute access token.
   await createRefresh(req, res, userId, kind, familyId);
   return {
     user,

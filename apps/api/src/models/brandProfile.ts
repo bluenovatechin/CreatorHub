@@ -1,3 +1,8 @@
+/**
+ * BRAND PROFILES collection: one per brand account (created when they choose "brand").
+ * Status: INCOMPLETE until the company details form is saved once, then ACTIVE.
+ * `phone` is never shown to creators.
+ */
 import { Schema, model, type InferSchemaType, type HydratedDocument } from 'mongoose';
 import { BRAND_STATUSES, CATEGORY_KEYS, CITY_KEYS } from '@bluenova/shared';
 

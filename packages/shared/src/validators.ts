@@ -1,4 +1,8 @@
 /**
+ * REAL-WORLD CHECKS used by schemas.ts: GSTIN check digit, PIN code ↔ state, fake-looking phone numbers
+ * and names, disposable email domains, and the password rules.
+ */
+/**
  * Real-world checks that catch false or made-up information, beyond simple formats.
  * Used by the browser (instant feedback) and the server (enforcement).
  */

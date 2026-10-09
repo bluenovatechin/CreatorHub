@@ -1,3 +1,6 @@
+/**
+ * Icons for each content category (food, fashion, ...).
+ */
 import {
   Briefcase, Building2, Car, Clapperboard, Cpu, Dumbbell, GraduationCap, HeartPulse, IndianRupee, Megaphone, Plane,
   Shirt, Sofa, Sparkles, Store, UtensilsCrossed, type LucideIcon,

@@ -1,7 +1,10 @@
+/**
+ * ADMIN LOGIN (step 1 email + password → step 2 authenticator code) and the page frame (sidebar menu).
+ */
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
-  FileClock, LayoutDashboard, Lock, LogOut, Mail, Megaphone, Settings, ShieldCheck, Users, Wallet,
+  Contact, FileClock, LayoutDashboard, Lock, LogOut, Mail, Megaphone, Settings, ShieldCheck, Users, Wallet,
 } from 'lucide-react';
 import { Alert, Avatar, Button, Field, Input, PasswordInput, cx } from '@bluenova/ui';
 import { api, can, errorText, useAdmin, useFeatures, type AdminMe } from '../lib';
@@ -93,6 +96,7 @@ export function AdminLayout() {
     { to: '/creators', label: 'Creators', icon: Users, show: can(me, 'reviewer', 'campaign_manager') },
     { to: '/campaigns', label: 'Campaigns', icon: Megaphone, show: can(me, 'campaign_manager') },
     { to: '/payments', label: 'Payments', icon: Wallet, show: paymentsEnabled && can(me, 'finance', 'campaign_manager') },
+    { to: '/users', label: 'Users', icon: Contact, show: me?.adminRole === 'super_admin' },
     { to: '/audit-logs', label: 'Audit log', icon: FileClock, show: me?.adminRole === 'super_admin' },
     { to: '/settings', label: 'Settings', icon: Settings, show: true },
   ].filter((i) => i.show);

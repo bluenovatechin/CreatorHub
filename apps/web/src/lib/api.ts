@@ -1,3 +1,8 @@
+/**
+ * WEBSITE → API connection. `api.get/post/put/patch('/path')` calls /api/v1/path with the login token
+ * and automatically refreshes the session once if it expired. Also: errorText() turns API errors into
+ * English/Gujarati text; applyServerErrors() puts per-field errors under the right form fields.
+ */
 import { ApiError, createApiClient } from '@bluenova/ui';
 import type { FieldValues, Path, UseFormSetError } from 'react-hook-form';
 import type { TFunction } from 'i18next';

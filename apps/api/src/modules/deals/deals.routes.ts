@@ -1,3 +1,7 @@
+/**
+ * DEALS (for creators and brands: each side sees only its own deals, through ownerFilter)
+ * and NOTIFICATIONS (the bell icon, for any signed-in user).
+ */
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { objectId } from '@bluenova/shared';

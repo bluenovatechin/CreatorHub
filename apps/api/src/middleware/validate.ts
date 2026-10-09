@@ -1,3 +1,8 @@
+/**
+ * INPUT CHECKING: validate({ body, params, query }) checks the request against zod schemas
+ * (mostly from packages/shared/src/schemas.ts, the SAME rules the website uses). Bad input → 400 with a
+ * message per field. Unknown fields are dropped, so nobody can sneak in e.g. { role: 'admin' }.
+ */
 import type { NextFunction, Request, Response } from 'express';
 import { z, type ZodTypeAny } from 'zod';
 import { AppError } from '../lib/errors';
@@ -15,7 +20,7 @@ export function zodFields(error: z.ZodError): Record<string, string> {
 
 /** Validates request parts with zod. Unknown keys are stripped (zod default), so mass assignment is impossible. */
 export const validate = (parts: Parts) => (req: Request, _res: Response, next: NextFunction) => {
-  req.validated = {};
+  req.validated ??= {}; // keep results from an earlier validate() on the same route (e.g. params, then body)
   for (const key of ['params', 'query', 'body'] as const) {
     const schema = parts[key];
     if (!schema) continue;

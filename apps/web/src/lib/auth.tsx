@@ -1,3 +1,9 @@
+/**
+ * WHO IS LOGGED IN (React context). On page load it asks the API to restore the session from the
+ * httpOnly cookie (POST /auth/refresh). Also decides where each user belongs:
+ *   homePathFor(me)   no role → /welcome/role; creator → onboarding / status / dashboard; brand → profile / dashboard
+ *   postLoginPath     where to go right after login (honours ?next= only inside the user's own area)
+ */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Navigate, useLocation } from 'react-router-dom';

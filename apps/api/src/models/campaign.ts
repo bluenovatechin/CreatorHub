@@ -1,3 +1,8 @@
+/**
+ * CAMPAIGNS (a brand's request: what, who, when, budget) and SHORTLIST ITEMS
+ * (creators the team proposes for a campaign, with the brand price and the creator payout).
+ * Campaign status flow: DRAFT → SUBMITTED → IN_REVIEW → SHORTLIST_SENT → CREATORS_SELECTED → PAYMENT_PENDING → ACTIVE → COMPLETED.
+ */
 import { Schema, model, type InferSchemaType, type HydratedDocument } from 'mongoose';
 import {
   AGE_GROUPS, CAMPAIGN_GOALS, CAMPAIGN_STATUSES, CATEGORY_KEYS, CITY_KEYS, COLLAB_TYPES,

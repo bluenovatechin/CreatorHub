@@ -1,3 +1,10 @@
+/**
+ * WHO IS CALLING? (runs before protected routes)
+ *   authenticate('app' | 'admin')  checks the "Authorization: Bearer <token>" header, then re-checks the user in
+ *                                  the database (suspended / logged out everywhere → 401). Sets req.auth.
+ *   authorize('creator', ...)      only these website roles may continue (else 403).
+ *   requireAdmin('finance', ...)   only these team roles may continue; super_admin always may (else 403).
+ */
 import type { NextFunction, Request, Response } from 'express';
 import type { AdminRole, Role } from '@bluenova/shared';
 import { AppError } from '../lib/errors';

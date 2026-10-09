@@ -1,3 +1,7 @@
+/**
+ * MANUAL PAYMENT PAGE (only when payments are switched ON): shows what to pay and the bank/UPI details,
+ * then the brand reports the transfer reference for the finance team to verify.
+ */
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';

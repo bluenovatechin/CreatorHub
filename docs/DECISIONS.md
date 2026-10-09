@@ -97,3 +97,30 @@ Record every deviation from `BLUENOVA_AI_BUILD_PROMPT.md` and every assumption h
 ## 2026-10-08: reset-link bug fix
 - **Bug:** the reset link was used up before the new password was checked, so a password rejected on the server (for example, one containing the user's name) left the user with an "expired" link. Fixed: the link is checked without being used, the password is validated, and only then is the link consumed (atomically, still single-use).
 - Reset links now last **1 hour** (was 30 minutes). Errors now say whether a link was already used or replaced by a newer email (`errors.linkUsed`) or has expired (`errors.linkExpired`).
+
+## 2026-10-09: simpler signup, admin Users screen, docs and code standards
+
+### Accounts
+- **Signup asks only for name, email and password** (plus acceptance of the terms), or "Continue with Google".
+- **"Creator or brand?" moves to after the first login** (`/welcome/role`, `POST /auth/role`).
+  - Why: Google signups were stuck on the role question, and a shorter form is easier.
+  - The choice is one-time. It's saved in a transaction together with the empty profile.
+- **The email-code flow was made robust:**
+  - A second tab (or Log in before verifying) no longer breaks the first tab's code page.
+  - Signing up again with an unverified email sends a fresh code. The new name and password apply only after that code is entered, which protects against someone pre-registering your email.
+- **Local development now talks to the local API.** Before, it sent requests to the deployed Render API, which ran old code and can't send Gmail. Set `API_PROXY_TARGET` to use another API.
+
+### Admin → Users (super admin only)
+- Lists every account with its profile summary, and opens one account in full.
+- Actions: **set a new password** and **suspend / re-activate**. Each needs a reason, is audited, and logs the user out everywhere.
+- Viewing an account is also audited.
+- **Passwords are never displayed:** they are stored as argon2id hashes, which can't be reversed. Admins set a new password instead.
+
+### Code standards
+- Every source file has a header comment (what it is, who uses it, what it calls).
+- The trickiest logic (sessions, codes) has step-by-step comments.
+- New docs: `docs/README.md` (index), ARCHITECTURE, FLOWS, API, DATA_MODELS, SECURITY, DESIGN, TESTING, CODING_STANDARDS, DEPLOYMENT. Root `AGENTS.md` / `CLAUDE.md` give AI tools the rules.
+- Leftovers from phone-OTP login and verification links were removed.
+- `sendInBackground()` moved to `providers/email.ts`, and `setPassword()` to `auth.service.ts`, so they can be reused.
+- `validate()` now merges results when it's used twice on one route.
+- More fields are redacted from logs: password hashes, tickets, Google credentials, code and token hashes.

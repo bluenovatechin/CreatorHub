@@ -1,3 +1,7 @@
+/**
+ * NEW CAMPAIGN WIZARD (/brand/campaigns/new and /edit/:step): 5 steps saved one by one, then submit.
+ * Step 1 creates the draft (POST /campaigns); steps 2–5 update it (PUT /campaigns/:id/wizard/:step).
+ */
 import { useState, type ReactNode } from 'react';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { useQuery, useQueryClient } from '@tanstack/react-query';

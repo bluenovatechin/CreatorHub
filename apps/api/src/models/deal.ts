@@ -1,3 +1,8 @@
+/**
+ * OFFERS (sent to a creator when a brand selects them; accept/decline within 48h) and
+ * DEALS (created when a creator accepts: the actual piece of work, from payment to the live post).
+ * `marginPaise` (Bluenova's cut) has select:false and is never shown to brands or creators.
+ */
 import { Schema, model, type InferSchemaType, type HydratedDocument } from 'mongoose';
 import { DEAL_STATUSES, DEAL_TYPES, DELIVERABLE_TYPES, OFFER_DECLINE_REASONS, OFFER_STATUSES } from '@bluenova/shared';
 

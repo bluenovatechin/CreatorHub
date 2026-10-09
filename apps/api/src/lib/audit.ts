@@ -1,3 +1,8 @@
+/**
+ * AUDIT LOG WRITER: records who did what (admin actions, money, account changes) into the AuditLog
+ * collection, which can only be added to, never edited or deleted (see models/system.ts).
+ * Used by admin routes, payments and admin → users. Never put passwords or secrets in `changes`.
+ */
 import type { Request } from 'express';
 import type { ClientSession, Types } from 'mongoose';
 import { AuditLogModel } from '../models/system';

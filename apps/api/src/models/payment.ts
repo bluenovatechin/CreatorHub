@@ -1,3 +1,7 @@
+/**
+ * PAYMENTS collection (only used when payments are switched ON in admin Settings):
+ * a brand reports a bank/UPI transfer, finance checks the bank statement and verifies or rejects it.
+ */
 import { Schema, model, type InferSchemaType, type HydratedDocument } from 'mongoose';
 import { PAYMENT_METHODS } from '@bluenova/shared';
 

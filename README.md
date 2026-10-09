@@ -3,14 +3,14 @@
 **A managed platform connecting brands with Instagram content creators in Gujarat.**
 Creators apply and are reviewed by the Bluenova team. Brands post campaign requirements and receive a curated shortlist of verified creators. Bluenova manages every collaboration from brief to delivery. The whole site works in **Gujarati and English**.
 
-> Status: **testing / pre-launch.** Not yet deployed.
+> Status: **testing / pre-launch.** Deployed for testing on Render (API) and Vercel (website + admin).
 
 ---
 
 ## Features
 
 ### For creators
-- Email + password sign-up with email verification, forgot/reset password
+- Simple sign-up (name, email, password) with a 6-digit email code, or **Continue with Google**; choose "creator" or "brand" after the first login; forgot/reset password
 - 5-step onboarding: profile & WhatsApp number → categories (16) → best 2–3 reels → stats & prices → review & submit
 - Application status timeline. On approval: **Official Creator Partner** badge and the **intro-reel brief** (Gujarati script with the creator's name filled in, plus a shooting checklist)
 - Opportunities feed, offers (accept / decline), collaborations list, notifications
@@ -25,6 +25,7 @@ Creators apply and are reviewed by the Bluenova team. Brands post campaign requi
 - Work-queue dashboard, creator review (claim → scores → approve / request changes / reject)
 - Campaign claiming, **match score** ranking, shortlist builder with automatic margin pricing
 - "Start campaign" once creators accept. Payments are arranged outside the website while the payment feature is switched off.
+- **Users** screen (super admins): every account with its profile, set a new password, suspend / re-activate
 - Read-only audit log of every admin action
 - Feature switch: in-website manual payments (bank transfer / UPI with UTR verification) are built in but **off by default**
 
@@ -117,26 +118,15 @@ Then test with `npm run email:test -- --to you@example.com`.
 
 ---
 
-## Hosting (later)
+## Hosting
 
-The structure is ready for **Render** (API) + **Vercel** (website and admin):
-
-| App | Host | Root directory | Build command | Start / output |
-|---|---|---|---|---|
-| API | Render (Web Service) | repository root | `npm ci && npm run build -w @bluenova/api` | `npm run start -w @bluenova/api` |
-| Website | Vercel | `apps/web` | `npm run build` | `dist` |
-| Admin | Vercel | `apps/admin` | `npm run build` | `dist` |
-
-Before going live:
-- Point `/api` on both Vercel sites to the Render API (a rewrite in each app's `vercel.json`), so login cookies stay first-party.
-- Set the production environment variables on Render (`NODE_ENV=production`, `COOKIE_SECURE=true`, `CORS_ORIGINS`, `APP_BASE_URL`, `ADMIN_BASE_URL`, real email settings).
-- Add Render's outbound IP addresses in Atlas → Network Access.
-
-The API refuses to start in production if any of these settings are unsafe.
+The API runs on **Render** (`render.yaml`), and the website and admin panel run on **Vercel** (`apps/*/vercel.json`). The database is **MongoDB Atlas**. Step-by-step setup, every environment variable, live email (Brevo) and Google sign-in are covered in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ---
 
 ## Documentation
+Start at **[docs/README.md](docs/README.md)**: architecture, step-by-step flows (which page calls which API, and where success and failure lead), API reference, data models, security, design, coding standards, testing and deployment.
+- [AGENTS.md](AGENTS.md): rules and project memory for AI coding tools
 - [docs/DECISIONS.md](docs/DECISIONS.md): decisions, simplifications and what's next
 - [docs/BLUENOVA_AI_BUILD_PROMPT.md](docs/BLUENOVA_AI_BUILD_PROMPT.md): full product & security specification
 - Privacy Policy and Terms of Use are on the website at `/privacy` and `/terms`

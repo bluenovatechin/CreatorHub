@@ -1,3 +1,7 @@
+/**
+ * INPUT RULES (zod) for every form. The website uses them to show errors instantly; the API uses the SAME
+ * rules to reject bad input. Error messages are translation keys like 'errors.passwordShort'.
+ */
 import { z } from 'zod';
 import {
   AGE_GROUPS, CAMPAIGN_GOALS, COLLAB_TYPES, CREATOR_DECISIONS, DELIVERABLE_TYPES, FOLLOWER_BANDS,
@@ -53,8 +57,6 @@ export const passwordSchema = z.string().min(1, 'errors.zod.invalid_type').max(1
 
 export const objectId = z.string().regex(/^[a-f0-9]{24}$/i, 'errors.invalidId');
 
-export const phoneSchema = z.string().trim().regex(/^[6-9]\d{9}$/, 'errors.phone');
-export const otpCodeSchema = z.string().trim().regex(/^\d{6}$/, 'errors.otp');
 export const totpCodeSchema = z.string().trim().regex(/^\d{6}$/, 'errors.otp');
 
 export const httpsUrl = z.string().trim().max(200, 'errors.tooLong').url('errors.url')
@@ -93,7 +95,7 @@ export const signupSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   confirmPassword: z.string(),
-  role: z.enum(['creator', 'brand'], { errorMap: () => ({ message: 'errors.roleRequired' }) }),
+  // No role here on purpose: people choose "creator" or "brand" after their first login (POST /auth/role).
   acceptTerms: z.literal(true, { errorMap: () => ({ message: 'errors.consentRequired' }) }),
 }).superRefine((v, ctx) => {
   if (v.password !== v.confirmPassword) ctx.addIssue({ code: 'custom', path: ['confirmPassword'], message: 'errors.passwordMismatch' });
@@ -126,14 +128,7 @@ export const changePasswordSchema = z.object({
 
 /* ---------- phone helpers ---------- */
 
-export const otpRequestSchema = z.object({ phone: phoneSchema });
-export const otpVerifySchema = z.object({
-  phone: phoneSchema,
-  code: otpCodeSchema,
-  preferredLanguage: z.enum(UI_LANGUAGES).optional(),
-  ref: z.string().trim().regex(/^[A-Z0-9]{6,12}$/).optional(),
-});
-export const roleSelectSchema = z.object({ role: z.enum(['creator', 'brand']) });
+export const roleSelectSchema = z.object({ role: z.enum(['creator', 'brand'], { errorMap: () => ({ message: 'errors.roleRequired' }) }) });
 export const adminTotpSchema = z.object({ mfaToken: z.string().min(20).max(2000), code: totpCodeSchema });
 export const adminLoginSchema = loginSchema;
 export const preferencesSchema = z.object({ preferredLanguage: z.enum(UI_LANGUAGES) });

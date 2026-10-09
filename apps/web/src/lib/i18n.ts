@@ -1,3 +1,7 @@
+/**
+ * TRANSLATIONS (English + Gujarati) using i18next. Texts live in src/i18n/en.json and gu.json
+ * (both files must have the same keys). Also translates form validation messages.
+ */
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { z } from 'zod';

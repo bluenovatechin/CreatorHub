@@ -1,3 +1,8 @@
+/**
+ * CREATOR ONBOARDING (/creator/onboarding/1..5): 4 forms (about you, categories, sample reels, stats & rates)
+ * saved one by one (PUT /creators/me/onboarding/:step), then step 5 = review & submit (POST /creators/me/submit).
+ * After submit → /creator/status while the team reviews.
+ */
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';

@@ -1,3 +1,7 @@
+/**
+ * BRAND AREA: company profile form (first visit), dashboard, campaigns list and detail
+ * (see shortlist, select creators, cancel), deals.
+ */
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';

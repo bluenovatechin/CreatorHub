@@ -1,3 +1,6 @@
+/**
+ * MONEY: rupees ↔ paise (always store whole paise), Indian ₹ formatting, suggested brand price from payout + margin.
+ */
 /** All money is stored as integer paise. Never use floats for money. */
 
 export const rupeesToPaise = (rupees: number): number => {

@@ -1,3 +1,6 @@
+/**
+ * Starts ONE in-memory MongoDB for the whole test run (no real database is ever touched).
+ */
 import { MongoMemoryReplSet } from 'mongodb-memory-server-core';
 import type { GlobalSetupContext } from 'vitest/node';
 

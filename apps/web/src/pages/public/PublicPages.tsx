@@ -1,3 +1,6 @@
+/**
+ * PUBLIC PAGES (no login): home, for creators, for brands, page not found.
+ */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -123,8 +126,8 @@ export function HomePage() {
             <h1 className="mt-5 font-display text-4xl font-extrabold leading-[1.1] tracking-tight text-navy sm:text-5xl lg:text-[56px]">{t('home.heroTitle')}</h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-ink-muted">{t('home.heroText')}</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link to="/signup?role=creator" className={primaryBtn}>{t('home.ctaCreator')}<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
-              <Link to="/signup?role=brand" className={secondaryBtn}><Building2 className="h-4 w-4" aria-hidden="true" />{t('home.ctaBrand')}</Link>
+              <Link to="/signup" className={primaryBtn}>{t('home.ctaCreator')}<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+              <Link to="/signup" className={secondaryBtn}><Building2 className="h-4 w-4" aria-hidden="true" />{t('home.ctaBrand')}</Link>
             </div>
             <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium text-ink-muted">
               {[t('home.trust1'), t('home.trust2'), t('home.trust3')].map((x) => (
@@ -170,7 +173,7 @@ export function HomePage() {
           ))}
         </ol>
         <div className="mt-8 text-center">
-          <Link to={tab === 'creators' ? '/signup?role=creator' : '/signup?role=brand'} className={primaryBtn}>
+          <Link to="/signup" className={primaryBtn}>
             {tab === 'creators' ? t('forCreators.cta') : t('forBrands.cta')}<ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
@@ -242,8 +245,8 @@ export function HomePage() {
             <p className="mt-2 text-ink-muted">{t('home.ctaText')}</p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Link to="/signup?role=creator" className={primaryBtn}>{t('home.ctaCreator')}</Link>
-            <Link to="/signup?role=brand" className={secondaryBtn}>{t('home.ctaBrand')}</Link>
+            <Link to="/signup" className={primaryBtn}>{t('home.ctaCreator')}</Link>
+            <Link to="/signup" className={secondaryBtn}>{t('home.ctaBrand')}</Link>
           </div>
         </div>
       </section>
@@ -270,7 +273,7 @@ export function ForCreatorsPage() {
   const steps = ['p1', 'p2', 'p3', 'p4', 'p5'] as const;
   return (
     <>
-      <PageHero eyebrow={t('forCreators.eyebrow')} title={t('forCreators.title')} text={t('forCreators.intro')} cta={t('forCreators.cta')} to="/signup?role=creator" />
+      <PageHero eyebrow={t('forCreators.eyebrow')} title={t('forCreators.title')} text={t('forCreators.intro')} cta={t('forCreators.cta')} to="/signup" />
       <section className="mx-auto grid max-w-content gap-8 px-4 py-14 lg:grid-cols-[1.3fr_1fr]">
         <div className="rounded-card border border-line bg-white p-6 shadow-card sm:p-8">
           <h2 className="font-display text-2xl font-extrabold text-navy">{t('forCreators.processTitle')}</h2>
@@ -315,7 +318,7 @@ export function ForBrandsPage() {
   ];
   return (
     <>
-      <PageHero eyebrow={t('forBrands.eyebrow')} title={t('forBrands.title')} text={t('forBrands.intro')} cta={t('forBrands.cta')} to="/signup?role=brand" />
+      <PageHero eyebrow={t('forBrands.eyebrow')} title={t('forBrands.title')} text={t('forBrands.intro')} cta={t('forBrands.cta')} to="/signup" />
       <section className="mx-auto max-w-content px-4 py-14">
         <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map(({ icon: Icon, k }, i) => (

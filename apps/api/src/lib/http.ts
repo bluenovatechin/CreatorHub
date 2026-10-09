@@ -1,3 +1,11 @@
+/**
+ * SMALL HELPERS USED BY EVERY ROUTE:
+ *   h(fn)            wraps an async route so thrown errors reach the error handler
+ *   ok(res, data)    sends the standard success reply: { data, meta? }
+ *   input(req)       reads the input that validate() already checked (never use req.body directly)
+ *   withTransaction  all-or-nothing database changes (e.g. accept an offer AND create the deal)
+ *   cursorPage       "load more" paging (newest first)
+ */
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { ClientSession } from 'mongoose';
 import mongoose from 'mongoose';

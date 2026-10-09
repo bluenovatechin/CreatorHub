@@ -1,3 +1,7 @@
+/**
+ * 60-SECOND CACHE of each user's role/status/tokenVersion, so every request can check
+ * "is this person still allowed?" without a database trip. Call invalidateUser(id) after changing any of those fields.
+ */
 import type { AdminRole, Role } from '@bluenova/shared';
 import { UserModel } from '../models/user';
 

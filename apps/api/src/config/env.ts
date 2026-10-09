@@ -1,3 +1,9 @@
+/**
+ * ENVIRONMENT SETTINGS: reads apps/api/.env (or Render's Environment tab) and checks every value at startup.
+ * If something is missing or unsafe (e.g. http URLs in production) the API refuses to start and says why,
+ * without printing the secret values. Everywhere else imports `env` from here instead of using process.env.
+ * All variables are explained in apps/api/.env.example and docs/DEPLOYMENT.md.
+ */
 import 'dotenv/config';
 import { z } from 'zod';
 
@@ -14,7 +20,6 @@ const schema = z.object({
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().default(900),
   REFRESH_TTL_USER_DAYS: z.coerce.number().int().default(30),
   REFRESH_TTL_ADMIN_HOURS: z.coerce.number().int().default(12),
-  OTP_PEPPER: z.string().optional(), // no longer used (phone OTP login was removed)
   // Either one key (DATA_ENCRYPTION_KEY, base64 of 32 bytes — what Render's "generate value" produces)
   // or several versioned keys for rotation (DATA_ENCRYPTION_KEYS as JSON).
   DATA_ENCRYPTION_KEY: base64Key.optional(),

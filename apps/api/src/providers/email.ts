@@ -1,3 +1,10 @@
+/**
+ * SENDING EMAIL. EMAIL_PROVIDER in .env picks how:
+ *   console  print to the terminal (development, tests)      smtp   Gmail via Nodemailer (works locally)
+ *   brevo    Brevo HTTPS API (works on Render's free plan)   resend Resend HTTPS API
+ * Use sendInBackground(emails.xxx(...)) from routes so a slow mail server never slows a request.
+ * Email texts (templates) are at the bottom of this file.
+ */
 import nodemailer from 'nodemailer';
 import { env } from '../config/env';
 import { logger } from '../lib/logger';
@@ -39,7 +46,6 @@ const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 const BUTTON_LABEL: Record<string, string> = {
-  '/verify-email': 'Verify my email / Email verify કરો',
   '/reset-password': 'Set a new password / નવો password સેટ કરો',
   '/login': 'Log in / Log in કરો',
 };
@@ -150,6 +156,28 @@ export const email: EmailProvider =
       : env.EMAIL_PROVIDER === 'brevo' ? new BrevoEmailProvider()
         : consoleEmail;
 
+/**
+ * Sends an email WITHOUT making the request wait for it ("fire and forget").
+ * Why: a slow or blocked mail server must never freeze signup/login. Failures are logged, never shown
+ * to the user (that could reveal whether an account exists). In development, if sending fails, the
+ * code/link is printed in the terminal so the developer is never stuck.
+ */
+export function sendInBackground(msg: EmailMessage): void {
+  email.send(msg).catch((err: unknown) => {
+    const reason = err instanceof Error ? err.message : String(err);
+    logger.error({ reason }, 'email delivery failed');
+    if (env.NODE_ENV === 'development' && (msg.link || msg.code)) {
+      // eslint-disable-next-line no-console
+      console.log([
+        '',
+        `  ⚠️  Email to ${msg.to} could NOT be sent: ${reason}`,
+        msg.code ? `     Code (for testing):  ${msg.code}` : `     Link (for testing):  ${msg.link}`,
+        '',
+      ].join('\n'));
+    }
+  });
+}
+
 /* ---------- templates (plain text; bilingual where users see them) ---------- */
 
 const footer = '\n\n— Bluenova Creator Hub\n+91 76002 36644 · bluenovatech.in\nBluenova will never ask for your password.';
@@ -162,11 +190,6 @@ export const emails = {
     text: `Your Bluenova Creator Hub verification code is ${code}.\n\nતમારો verification code ${code} છે.\n\nIt expires in 10 minutes. If you didn't sign up, you can ignore this email.`,
   }),
   /** Deliberately minimal: only the verification button. Profile details are entered after login. */
-  verify: (to: string, _name: string, link: string): EmailMessage => ({
-    to, link,
-    subject: 'Verify your email — Bluenova Creator Hub',
-    text: `Please verify your email address.\n${link}\n\nતમારું email verify કરવા button પર click કરો.\n\nThis link expires in 24 hours. If you didn't create an account, you can ignore this email.`,
-  }),
   alreadyRegistered: (to: string, link: string): EmailMessage => ({
     to, link,
     subject: 'You already have a Bluenova account',

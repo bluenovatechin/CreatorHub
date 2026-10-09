@@ -1,3 +1,12 @@
+/**
+ * BUILDS THE EXPRESS APP: security middleware first, then every route group.
+ * Every request passes through, in this order:
+ *   requestId → logging → helmet (security headers) → CORS → JSON body (max 100kb) → cookies
+ *   → mongoSanitize (blocks $-operators in input) → hpp → global rate limit → /api/v1 router
+ *   → (route-level: auth check → role check → input validation → handler) → error handler.
+ * Route groups: /auth (auth.routes) · /me · /notifications · /admin/* · creators · brands · deals.
+ * Docs: docs/ARCHITECTURE.md (request lifecycle) and docs/API.md (every endpoint).
+ */
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';

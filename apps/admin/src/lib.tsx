@@ -1,3 +1,7 @@
+/**
+ * ADMIN PANEL HELPERS: API client (separate admin session cookie), English error messages, number/date
+ * formatting, status colours, the admin login context, and can(me, role) for showing/hiding buttons.
+ */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
@@ -23,7 +27,8 @@ const MESSAGES: Record<string, string> = {
   'errors.ifsc': 'Enter a valid IFSC (e.g. HDFC0001234).',
   'errors.upi': 'Enter a valid UPI ID (e.g. name@bank).',
   'errors.nameFake': 'Enter a real name.',
-  'errors.reasonRequired': 'A reason is required.',
+  'errors.reasonRequired': 'A reason is required (at least 3 characters).',
+  'errors.adminSelfServiceOnly': 'Team accounts can only be changed by their owner (in Settings).',
   'errors.scoresRequired': 'Give all four scores.',
   'errors.usePaymentFlow': 'Payments are switched on: this campaign starts when its payment is verified.',
   'errors.priceBelowPayout': 'Brand price cannot be lower than the creator payout.',

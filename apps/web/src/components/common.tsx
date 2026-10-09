@@ -1,3 +1,6 @@
+/**
+ * SMALL SHARED WEBSITE PIECES: translated field errors, status badges, loading/error boxes, safety tips.
+ */
 import { useTranslation } from 'react-i18next';
 import { Alert, Badge, Button, Loading } from '@bluenova/ui';
 import { errorText } from '../lib/api';

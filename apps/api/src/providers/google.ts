@@ -1,3 +1,7 @@
+/**
+ * "CONTINUE WITH GOOGLE": checks the signed ID token the Google button gave the browser
+ * (signature, expiry, and that it was made for OUR GOOGLE_CLIENT_ID). Used by POST /auth/google.
+ */
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../config/env';
 import { AppError } from '../lib/errors';

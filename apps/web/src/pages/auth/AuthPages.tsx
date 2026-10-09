@@ -1,3 +1,8 @@
+/**
+ * ACCOUNT PAGES: /login, /signup (+ 6-digit email code step), Continue with Google, /forgot-password,
+ * /reset-password, and /welcome/role ("What brings you to Bluenova?" — creator or brand, asked once after the first login).
+ * Every flow with success/failure paths: docs/FLOWS.md → "Accounts & login".
+ */
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -149,16 +154,20 @@ function loadGoogleScript(): Promise<void> {
 }
 
 /**
- * Google's own button. `beforeSignIn` can block (e.g. role not chosen yet) by returning an error message.
- * Google proves the email is real, so these accounts skip the email code.
+ * Google's own "Continue with Google" button (same button on the login and signup pages).
+ *
+ * Flow: click → Google popup → Google gives us a signed `credential` → POST /auth/google →
+ * the API verifies it with Google and logs the person in (creating the account the first time) →
+ * new accounts have no role yet, so useFinishLogin() sends them to /welcome/role ("creator or brand?").
+ * Google has already proven the email is real, so these accounts never need the 6-digit email code.
  */
-function GoogleButton({ role, beforeSignIn }: { role?: 'creator' | 'brand'; beforeSignIn?: () => string | null }) {
+function GoogleButton() {
   const { t, i18n } = useTranslation();
-  const { googleClientId } = useAppConfig();
+  const { googleClientId, status } = useAppConfig();
   const finish = useFinishLogin();
   const ref = useRef<HTMLDivElement>(null);
-  const latest = useRef({ role, beforeSignIn });
-  latest.current = { role, beforeSignIn };
+  const [ready, setReady] = useState(false); // true once Google's own button has been drawn
+  const [scriptFailed, setScriptFailed] = useState(false); // Google's script blocked (offline, ad-blocker…)
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -170,11 +179,9 @@ function GoogleButton({ role, beforeSignIn }: { role?: 'creator' | 'brand'; befo
         client_id: googleClientId,
         ux_mode: 'popup',
         callback: async ({ credential }) => {
-          const blocked = latest.current.beforeSignIn?.();
-          if (blocked) { setError(blocked); return; }
           setError(null);
           try {
-            finish(await api.post<Session>('/auth/google', { credential, role: latest.current.role }));
+            finish(await api.post<Session>('/auth/google', { credential }));
           } catch (e) {
             setError(errorText(t, e));
           }
@@ -184,20 +191,48 @@ function GoogleButton({ role, beforeSignIn }: { role?: 'creator' | 'brand'; befo
       window.google.accounts.id.renderButton(ref.current, {
         theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', width: 360, locale: i18n.language === 'gu' ? 'gu' : 'en',
       });
-    }).catch(() => setError(t('errors.googleFailed')));
+      setReady(true);
+    }).catch(() => setScriptFailed(true));
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleClientId, i18n.language]);
 
-  if (!googleClientId) return null;
+  // Until Google's real button is ready (or if it can't load), show our own look-alike so the option is
+  // ALWAYS visible. Clicking it explains what's wrong instead of the button silently disappearing.
+  const explain = () => setError(
+    status === 'failed' ? t('errors.serverDown') // our API is unreachable
+      : status === 'loading' ? t('auth.googleLoading')
+        : !googleClientId ? t('errors.googleNotConfigured') // GOOGLE_CLIENT_ID not set on the API
+          : scriptFailed ? t('errors.googleFailed')
+            : t('auth.googleLoading'),
+  );
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wider text-ink-faint">
-        <span className="h-px flex-1 bg-line" />{t('auth.or')}<span className="h-px flex-1 bg-line" />
-      </div>
-      <div ref={ref} className="flex justify-center" />
+      <div ref={ref} className={ready ? 'flex min-h-11 justify-center' : 'hidden'} />
+      {!ready && (
+        <button type="button" onClick={explain}
+          className="flex min-h-11 w-full items-center justify-center gap-3 rounded-ctl border border-line-strong bg-white px-4 text-sm font-semibold text-ink hover:bg-bg">
+          <GoogleLogo />{t('auth.continueGoogle')}
+        </button>
+      )}
       {error && <Alert tone="red">{error}</Alert>}
+      <div className="flex items-center gap-3 pt-1 text-xs font-semibold uppercase tracking-wider text-ink-faint">
+        <span className="h-px flex-1 bg-line" />{t('auth.orEmail')}<span className="h-px flex-1 bg-line" />
+      </div>
     </div>
+  );
+}
+
+/** Google's multi-colour "G" (inline SVG: no extra request, works with our Content-Security-Policy). */
+function GoogleLogo() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-5 w-5" aria-hidden="true">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+    </svg>
   );
 }
 
@@ -230,6 +265,7 @@ export function LoginPage() {
   return (
     <AuthLayout>
       <Heading title={t('auth.loginTitle')} text={t('auth.loginSubtitle')} />
+      <div className="mb-5"><GoogleButton /></div>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
         <Field label={t('auth.email')} error={fe(errors.email?.message)}>
           {(id, d) => <Input id={id} aria-describedby={d} type="email" autoComplete="email" inputMode="email" icon={<Mail />} placeholder={t('auth.emailPh')} invalid={!!errors.email} {...register('email')} />}
@@ -242,11 +278,8 @@ export function LoginPage() {
         {error && <Alert tone={error.tone}>{error.text}</Alert>}
         <Button type="submit" block size="lg" loading={isSubmitting}>{t('auth.login')}</Button>
       </form>
-      <div className="mt-6">
-        <GoogleButton />
-        <p className="mt-3 text-center text-xs text-ink-muted">{t('auth.googleTerms')}</p>
-      </div>
-      <p className="mt-8 text-center text-sm text-ink-muted">
+      <p className="mt-4 text-center text-xs text-ink-muted">{t('auth.googleTerms')}</p>
+      <p className="mt-6 text-center text-sm text-ink-muted">
         {t('auth.noAccount')} <Link to="/signup" className="font-semibold text-primary hover:underline">{t('auth.createAccount')}</Link>
       </p>
     </AuthLayout>
@@ -255,28 +288,31 @@ export function LoginPage() {
 
 /* ---------- Sign up ---------- */
 
+/**
+ * Sign up: name, email, password (+ accept terms). Nothing else.
+ *
+ * Flow: submit → POST /auth/signup → the API emails a 6-digit code and returns a `ticket` →
+ * this same page swaps to <OtpStep> → correct code → logged in → /welcome/role ("creator or brand?").
+ * Errors: field problems (e.g. weak password) appear under the field; anything else in the red box.
+ */
 export function SignupPage() {
   const { t } = useTranslation();
-  const [params] = useSearchParams();
   const finish = useFinishLogin();
   const fe = useFieldError();
   const labels = usePasswordLabels();
   const [error, setError] = useState<string | null>(null);
+  // Set after a successful submit: switches this page to the "enter the code" step.
   const [verify, setVerify] = useState<{ ticket: string; email: string } | null>(null);
-  const initialRole = params.get('role') === 'brand' ? 'brand' : params.get('role') === 'creator' ? 'creator' : undefined;
-  const { register, handleSubmit, watch, setValue, setError: setFieldError, formState: { errors, isSubmitting } } = useForm<SignupInput>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: { role: initialRole } as Partial<SignupInput>,
+  const { register, handleSubmit, watch, setError: setFieldError, formState: { errors, isSubmitting } } = useForm<SignupInput>({
+    resolver: zodResolver(signupSchema), // the same rules the API uses (packages/shared/src/schemas.ts)
   });
-  const role = watch('role');
-  const acceptTerms = watch('acceptTerms');
   const password = watch('password') ?? '';
 
   const onSubmit = async (v: SignupInput) => {
     setError(null);
     try {
       const r = await api.post<Partial<Session> & { otpSent?: boolean; ticket?: string }>('/auth/signup', v);
-      if (r.accessToken && r.user) finish(r as Session); // test mode: verified straight away
+      if (r.accessToken && r.user) finish(r as Session); // TEST_MODE on the server: verified straight away
       else if (r.ticket) setVerify({ ticket: r.ticket, email: v.email });
     } catch (e) {
       if (!applyServerErrors(e, setFieldError)) setError(errorText(t, e));
@@ -288,15 +324,8 @@ export function SignupPage() {
   return (
     <AuthLayout>
       <Heading title={t('auth.signupTitle')} text={t('auth.signupSubtitle')} />
+      <div className="mb-5"><GoogleButton /></div>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
-        <div className="space-y-2">
-          <p id="role-label" className="text-sm font-semibold text-ink">{t('auth.iAm')}</p>
-          <ChoiceCards labelledBy="role-label" value={role} onChange={(v) => setValue('role', v, { shouldValidate: true })} options={[
-            { value: 'creator', title: t('auth.roleCreator'), text: t('auth.roleCreatorText'), icon: <Clapperboard className="h-5 w-5" /> },
-            { value: 'brand', title: t('auth.roleBrand'), text: t('auth.roleBrandText'), icon: <Building2 className="h-5 w-5" /> },
-          ]} />
-          {errors.role && <p role="alert" className="text-xs font-medium text-danger">{fe(errors.role.message)}</p>}
-        </div>
         <Field label={t('auth.name')} error={fe(errors.name?.message)} required>
           {(id, d) => <Input id={id} aria-describedby={d} autoComplete="name" icon={<User />} placeholder={t('auth.namePh')} invalid={!!errors.name} {...register('name')} />}
         </Field>
@@ -330,9 +359,7 @@ export function SignupPage() {
         {error && <Alert tone="red">{error}</Alert>}
         <Button type="submit" block size="lg" loading={isSubmitting}>{t('auth.signup')}</Button>
       </form>
-      <div className="mt-6">
-        <GoogleButton role={role} beforeSignIn={() => (!role ? t('errors.roleRequired') : !acceptTerms ? t('errors.consentRequired') : null)} />
-      </div>
+      <p className="mt-4 text-center text-xs text-ink-muted">{t('auth.googleTerms')}</p>
       <p className="mt-8 text-center text-sm text-ink-muted">
         {t('auth.haveAccount')} <Link to="/login" className="font-semibold text-primary hover:underline">{t('auth.login')}</Link>
       </p>
@@ -429,26 +456,34 @@ export function ResetPasswordPage() {
   );
 }
 
-/* ---------- Role choice (Google sign-ups and older accounts without a role) ---------- */
+/* ---------- "What brings you to Bluenova?" (shown once, right after the first login) ---------- */
 
+/**
+ * Every new account (email or Google) lands here once, because it has no role yet.
+ * Pick a card → Continue → POST /auth/role → the API creates the creator or brand profile →
+ * we reload /me and go to that area's first step (creator onboarding, or brand profile).
+ */
 export function RoleSelectPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { me, reloadMe } = useAuth();
+  const [role, setRole] = useState<'creator' | 'brand' | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Already chose before (e.g. pressed Back)? Go to their area instead.
   useEffect(() => {
-    if (me?.role) navigate(`/${me.role}`, { replace: true });
+    if (me?.role) navigate(postLoginPath(me, null), { replace: true });
   }, [me, navigate]);
 
-  const choose = async (role: 'creator' | 'brand') => {
+  const submit = async () => {
+    if (!role) { setError(t('errors.roleRequired')); return; }
     setBusy(true);
     setError(null);
     try {
       await api.post('/auth/role', { role });
-      const fresh = await reloadMe();
-      if (fresh) navigate(postLoginPath(fresh, null), { replace: true });
+      const fresh = await reloadMe(); // the useEffect above then navigates
+      if (!fresh) setError(t('errors.generic'));
     } catch (e) {
       setError(errorText(t, e));
     } finally {
@@ -459,11 +494,14 @@ export function RoleSelectPage() {
   return (
     <AuthLayout>
       <Heading title={t('auth.roleTitle')} text={t('auth.roleNote')} />
-      <ChoiceCards value={undefined} onChange={(v) => { if (!busy) void choose(v); }} options={[
-        { value: 'creator' as const, title: t('auth.roleCreator'), text: t('auth.roleCreatorText'), icon: <Clapperboard className="h-5 w-5" /> },
-        { value: 'brand' as const, title: t('auth.roleBrand'), text: t('auth.roleBrandText'), icon: <Building2 className="h-5 w-5" /> },
-      ]} />
-      {error && <div className="mt-4"><Alert tone="red">{error}</Alert></div>}
+      <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="space-y-5">
+        <ChoiceCards value={role} onChange={(v) => { setRole(v); setError(null); }} options={[
+          { value: 'creator' as const, title: t('auth.roleCreator'), text: t('auth.roleCreatorText'), icon: <Clapperboard className="h-5 w-5" /> },
+          { value: 'brand' as const, title: t('auth.roleBrand'), text: t('auth.roleBrandText'), icon: <Building2 className="h-5 w-5" /> },
+        ]} />
+        {error && <Alert tone="red">{error}</Alert>}
+        <Button type="submit" block size="lg" loading={busy} disabled={!role}>{t('auth.roleContinue')}</Button>
+      </form>
     </AuthLayout>
   );
 }

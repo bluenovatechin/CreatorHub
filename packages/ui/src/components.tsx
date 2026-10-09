@@ -1,3 +1,7 @@
+/**
+ * UI COMPONENTS (Tailwind CSS). Accessible by default: labels linked to inputs, errors announced,
+ * dialogs trap focus and close on Esc. Colours/fonts come from tailwind-preset.cjs. Guide: docs/DESIGN.md.
+ */
 import {
   forwardRef, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
   type SelectHTMLAttributes, type TextareaHTMLAttributes,

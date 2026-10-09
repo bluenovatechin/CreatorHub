@@ -1,3 +1,7 @@
+/**
+ * BACKGROUND JOBS (run inside the API process every 10 minutes; started by server.ts).
+ * Currently one job: offers nobody answered in time become EXPIRED and the creator is notified.
+ */
 import { logger } from '../lib/logger';
 import { notify } from '../lib/notify';
 import { CampaignModel } from '../models/campaign';

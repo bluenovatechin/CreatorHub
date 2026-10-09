@@ -1,3 +1,7 @@
+/**
+ * ADMIN PANEL ENTRY POINT + ALL ADMIN PAGES (URL → page). Everything except /login needs a team login.
+ * Menu items are hidden per team role in pages/Shell.tsx; the API enforces the same rules again.
+ */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -14,6 +18,7 @@ import { AdminAuthProvider, RequireAdmin } from './lib';
 import { AdminLayout, LoginPage } from './pages/Shell';
 import { AuditLogPage, CampaignDetailPage, CampaignsPage, CreatorDetailPage, CreatorsPage, DashboardPage } from './pages/Pages';
 import { PaymentsPage, SettingsPage } from './pages/Finance';
+import { UserDetailPage, UsersPage } from './pages/Users';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +40,8 @@ const router = createBrowserRouter([
       { path: '/creators/:id', element: <CreatorDetailPage /> },
       { path: '/campaigns', element: <CampaignsPage /> },
       { path: '/campaigns/:id', element: <CampaignDetailPage /> },
+      { path: '/users', element: <UsersPage /> },
+      { path: '/users/:id', element: <UserDetailPage /> },
       { path: '/audit-logs', element: <AuditLogPage /> },
       { path: '/payments', element: <PaymentsPage /> },
       { path: '/settings', element: <SettingsPage /> },

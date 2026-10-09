@@ -1,3 +1,11 @@
+/**
+ * ACCESS TOKENS (JWT, signed with JWT_ACCESS_SECRET, valid 15 minutes).
+ * Three audiences so a token for one area can never be used in another:
+ *   bluenova-app        creators & brands (website)
+ *   bluenova-admin      team (admin panel)
+ *   bluenova-admin-mfa  the 5-minute "password was right, now enter the authenticator code" step
+ * `tv` (token version) lets us log someone out everywhere instantly: bump user.tokenVersion and old tokens stop working.
+ */
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 

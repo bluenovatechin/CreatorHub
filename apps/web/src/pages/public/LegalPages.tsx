@@ -1,3 +1,6 @@
+/**
+ * PRIVACY POLICY and TERMS OF USE pages (/privacy, /terms).
+ */
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { FileText, ShieldCheck } from 'lucide-react';

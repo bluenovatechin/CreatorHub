@@ -1,3 +1,8 @@
+/**
+ * BRAND ROUTES (website, signed-in brands only): company profile, campaigns (5-step wizard, submit, cancel),
+ * shortlist (see the team's suggested creators, select some → offers are sent).
+ * Ownership rule: a brand can only ever load its OWN campaigns; anything else is a 404.
+ */
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import {

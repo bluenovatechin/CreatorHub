@@ -1,3 +1,8 @@
+/**
+ * LAST STOP FOR ERRORS: turns any thrown error into the standard reply
+ * { error: { code, message, fields?, requestId } }. Unexpected errors become a generic 500 and are logged;
+ * stack traces and internal messages are never sent to the browser.
+ */
 import type { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { env } from '../config/env';

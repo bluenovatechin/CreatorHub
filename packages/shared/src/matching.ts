@@ -1,3 +1,7 @@
+/**
+ * MATCH SCORE: ranks approved creators for a campaign (category, city, language, size, budget fit, quality).
+ * Used by the admin "matches" list.
+ */
 import type { DeliverableType, FollowerBand } from './enums';
 
 export interface MatchCreator {

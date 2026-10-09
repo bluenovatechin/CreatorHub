@@ -1,3 +1,8 @@
+/**
+ * PAYMENTS (manual bank/UPI transfers) + the payments on/off switch.
+ * While payments are OFF (the default), brand payment routes answer 404 and the team starts campaigns with
+ * POST /admin/campaigns/:id/start instead. All amounts are whole paise (₹1 = 100 paise) to avoid rounding errors.
+ */
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import {

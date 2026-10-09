@@ -1,3 +1,7 @@
+/**
+ * PAGE FRAMES: PublicLayout (home/marketing pages), AuthLayout (login/signup split screen),
+ * AppLayout (creator/brand area: sidebar, bell icon, language switch, logout). Also Logo and LanguageSwitch.
+ */
 import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';

@@ -1,3 +1,8 @@
+/**
+ * WEBSITE DEV SERVER SETTINGS (npm run dev → http://localhost:5180).
+ * Requests to /api are forwarded to the local API (localhost:4000), so the browser sees one address and the
+ * login cookie works exactly like in production (where vercel.json forwards /api to Render).
+ */
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 

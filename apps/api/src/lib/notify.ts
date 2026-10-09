@@ -1,3 +1,7 @@
+/**
+ * IN-APP NOTIFICATIONS (the bell icon). Stores a type + parameters; the website turns it into text
+ * in the user's language (i18n key `notif.<type>`). `link` must be an internal path like /creator/offers/123.
+ */
 import type { ClientSession, Types } from 'mongoose';
 import type { AdminRole } from '@bluenova/shared';
 import { NotificationModel } from '../models/system';

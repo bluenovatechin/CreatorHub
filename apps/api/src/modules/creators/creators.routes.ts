@@ -1,3 +1,8 @@
+/**
+ * CREATOR ROUTES (website, signed-in creators only): onboarding (4 data steps + submit for review),
+ * reapply after rejection, opportunities (campaigns in their categories), offers (accept/decline).
+ * Ownership rule: the profile always comes from the login token, never from the URL.
+ */
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import {

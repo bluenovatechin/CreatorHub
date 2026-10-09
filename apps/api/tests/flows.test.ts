@@ -1,3 +1,7 @@
+/**
+ * TESTS: business flows end to end — creator onboarding and review, brand campaign → shortlist → offer
+ * → deal, payments on/off, ownership checks (nobody can see another account's data).
+ */
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { AuditLogModel } from '../src/models/system';

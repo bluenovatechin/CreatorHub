@@ -1,4 +1,10 @@
+/**
+ * AUTH ROUTES (/api/v1/auth/*): sign up, email code, Google, login, logout, passwords, role choice,
+ * and the admin panel's two-step login. Each route here is thin: validate input → call auth.service.ts → reply.
+ * Full step-by-step flows with diagrams: docs/FLOWS.md (section "Accounts & login").
+ */
 import { Router, type Request } from 'express';
+import type { ClientSession } from 'mongoose';
 import {
   POLICY_VERSION, adminLoginSchema, adminTotpSchema, changePasswordSchema, emailOnlySchema, loginSchema, passwordProblem,
   preferencesSchema, resetPasswordSchema, roleSelectSchema, signupSchema, tokenSchema,
@@ -11,45 +17,22 @@ import { validate } from '../../middleware/validate';
 import { z } from 'zod';
 import { randomCode, randomToken } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
-import { h, input, ok } from '../../lib/http';
-import { logger } from '../../lib/logger';
+import { h, input, ok, withTransaction } from '../../lib/http';
 import { signMfaToken, verifyToken } from '../../lib/tokens';
 import { invalidateUser } from '../../lib/userCache';
 import { EmailTokenModel } from '../../models/auth';
 import { BrandProfileModel } from '../../models/brandProfile';
 import { CreatorProfileModel } from '../../models/creatorProfile';
 import { UserModel, type UserDoc } from '../../models/user';
-import { email, emails } from '../../providers/email';
+import { emails, sendInBackground } from '../../providers/email';
 import {
   checkCredentials, checkEmailOtp, clearLoginFailures, consumeEmailToken, createEmailOtp, createEmailToken, emailLink,
-  endAllSessions, endSession, hashPassword, peekEmailToken, peekSignupTicket, type PendingSignup, refreshSession, startSession, verifyPassword,
-  verifyTotp,
+  endAllSessions, endSession, hashPassword, peekEmailToken, peekSignupTicket, type PendingSignup, refreshSession, setPassword, startSession,
+  verifyPassword, verifyTotp,
 } from './auth.service';
 import { verifyGoogleCredential } from '../../providers/google';
 
 export const authRouter = Router();
-
-/**
- * Sends an email in the background. Requests never wait for email delivery (a slow or blocked mail
- * server must not freeze signup/login), and failures never reveal anything to the user; they are logged.
- */
-async function sendSafely(msg: Parameters<typeof email.send>[0]) {
-  try {
-    await email.send(msg);
-  } catch (err) {
-    logger.error({ reason: err instanceof Error ? err.message : String(err) }, 'email delivery failed');
-    if (env.NODE_ENV === 'development' && (msg.link || msg.code)) {
-      // Never leave the developer stuck: show why it failed and the link itself.
-      // eslint-disable-next-line no-console
-      console.log([
-        '',
-        `  ⚠️  Email to ${msg.to} could NOT be sent: ${err instanceof Error ? err.message : err}`,
-        msg.code ? `     Code (for testing):  ${msg.code}` : `     Link (for testing):  ${msg.link}`,
-        '',
-      ].join('\n'));
-    }
-  }
-}
 
 /** At most one email of each kind per minute per account. */
 async function recentlySent(userId: unknown, purpose: 'verify_otp' | 'reset_password') {
@@ -57,14 +40,15 @@ async function recentlySent(userId: unknown, purpose: 'verify_otp' | 'reset_pass
   return !!last && Date.now() - last.createdAt.getTime() < 60_000;
 }
 
-async function createProfile(userId: string, role: 'creator' | 'brand', name: string) {
+/** Creates the empty creator or brand profile that onboarding fills in later. */
+async function createProfile(userId: string, role: 'creator' | 'brand', name: string, session: ClientSession) {
   if (role === 'creator') {
-    await CreatorProfileModel.create({
+    await CreatorProfileModel.create([{
       userId, fullName: name, slug: `c-${randomCode('abcdefghijkmnpqrstuvwxyz23456789', 10)}`,
       referralCode: randomCode('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 8),
-    });
+    }], { session });
   } else {
-    await BrandProfileModel.create({ userId, contactName: name });
+    await BrandProfileModel.create([{ userId, contactName: name }], { session });
   }
 }
 
@@ -75,7 +59,7 @@ async function createProfile(userId: string, role: 'creator' | 'brand', name: st
 async function startEmailVerification(user: UserDoc, pending?: PendingSignup) {
   if (!(await recentlySent(user._id, 'verify_otp'))) {
     const code = await createEmailOtp(user._id);
-    void sendSafely(emails.otp(user.email, code));
+    sendInBackground(emails.otp(user.email, code));
   }
   return createEmailToken(user._id, 'signup_ticket', pending);
 }
@@ -85,6 +69,13 @@ const otpSchema = z.object({ ticket: tokenSchema.shape.token, code: z.string().t
 
 /* ---------- signup & email verification (6-digit code on the same page) ---------- */
 
+/**
+ * POST /auth/signup  { name, email, password, confirmPassword, acceptTerms }
+ * Reply: { otpSent: true, ticket }  → the page shows "enter the 6-digit code".
+ * (TEST_MODE: { accessToken, user } instead → logged in straight away.)
+ * The reply looks the same whether or not the email is already registered, so nobody can use this
+ * form to find out who has an account.
+ */
 authRouter.post('/signup', rateLimits.signup, validate({ body: signupSchema }), h(async (req, res) => {
   const d = input<SignupInput>(req);
   const existing = await UserModel.findOne({ email: d.email });
@@ -92,27 +83,27 @@ authRouter.post('/signup', rateLimits.signup, validate({ body: signupSchema }), 
   if (existing) {
     if (!existing.emailVerifiedAt && existing.status === 'active' && existing.role !== 'admin' && !existing.googleId) {
       // An unfinished signup (closed the tab, refreshed, lost the code): send a fresh code.
-      // The name/password/role typed now are applied only after the code from the inbox is entered.
-      const ticket = await startEmailVerification(existing, { name: d.name, role: d.role, passwordHash });
+      // The name/password typed now are applied only after the code from the inbox is entered.
+      const ticket = await startEmailVerification(existing, { name: d.name, passwordHash });
       return ok(res, { otpSent: true, ticket }, 201);
     }
     // Same response as a new signup (with a ticket that can never verify), so nobody can test
     // which emails are registered. The real owner gets a heads-up email instead of a code.
-    void sendSafely(emails.alreadyRegistered(d.email, `${env.APP_BASE_URL}/login`));
+    sendInBackground(emails.alreadyRegistered(d.email, `${env.APP_BASE_URL}/login`));
     return ok(res, { otpSent: true, ticket: randomToken(32) }, 201);
   }
   const now = new Date();
   const user = await UserModel.create({
-    name: d.name, email: d.email, role: d.role, passwordHash, passwordChangedAt: now,
+    // role stays null: the user picks "creator" or "brand" on the next screen (POST /auth/role).
+    name: d.name, email: d.email, role: null, passwordHash, passwordChangedAt: now,
     preferredLanguage: req.get('accept-language')?.startsWith('en') ? 'en' : 'gu',
     consents: [
       { type: 'terms', version: POLICY_VERSION, acceptedAt: now, ip: req.ip },
       { type: 'privacy', version: POLICY_VERSION, acceptedAt: now, ip: req.ip },
     ],
   });
-  await createProfile(String(user._id), d.role, d.name);
   if (env.TEST_MODE) {
-    // Testing without an email service: verified straight away, straight to the dashboard.
+    // Testing without an email service: verified straight away and logged in (next screen: choose a role).
     user.emailVerifiedAt = new Date();
     await user.save();
     const accessToken = await startSession(req, res, user, 'user');
@@ -121,7 +112,11 @@ authRouter.post('/signup', rateLimits.signup, validate({ body: signupSchema }), 
   ok(res, { otpSent: true, ticket: await startEmailVerification(user) }, 201);
 }));
 
-/** The code from the email, typed on the same page. Correct code = verified + logged in. */
+/**
+ * POST /auth/signup/verify-otp  { ticket, code }
+ * Correct code → email marked verified + logged in: { accessToken, user } (+ refresh cookie).
+ * Wrong code → 400 errors.otpInvalid · old/replaced code → errors.otpExpired · 5 wrong tries → errors.otpTooMany
+ */
 authRouter.post('/signup/verify-otp', rateLimits.otpVerify, validate({ body: otpSchema }), h(async (req, res) => {
   const { ticket, code } = input<{ ticket: string; code: string }>(req);
   const t = await peekSignupTicket(ticket);
@@ -133,11 +128,6 @@ authRouter.post('/signup/verify-otp', rateLimits.otpVerify, validate({ body: otp
     user.name = t.pending.name;
     user.passwordHash = t.pending.passwordHash;
     user.passwordChangedAt = new Date();
-    if (user.role !== t.pending.role) {
-      await Promise.all([CreatorProfileModel.deleteOne({ userId: user._id }), BrandProfileModel.deleteOne({ userId: user._id })]);
-      user.role = t.pending.role;
-      await createProfile(String(user._id), t.pending.role, t.pending.name);
-    }
   }
   user.emailVerifiedAt ??= new Date();
   await user.save();
@@ -148,26 +138,30 @@ authRouter.post('/signup/verify-otp', rateLimits.otpVerify, validate({ body: otp
   ok(res, { accessToken, user: await meView(String(user._id)) });
 }));
 
+/** POST /auth/signup/resend-otp  { ticket } → a new code (at most one per minute). Always replies { sent: true }. */
 authRouter.post('/signup/resend-otp', rateLimits.emailLinks, validate({ body: ticketSchema }), h(async (req, res) => {
   const t = await peekSignupTicket(input<{ ticket: string }>(req).ticket);
   const user = t ? await UserModel.findById(t.userId) : null;
   if (user && !user.emailVerifiedAt && user.status === 'active') {
     if (await recentlySent(user._id, 'verify_otp')) throw new AppError('RATE_LIMITED', 'errors.otpCooldown', undefined, 60);
     const code = await createEmailOtp(user._id);
-    void sendSafely(emails.otp(user.email, code));
+    sendInBackground(emails.otp(user.email, code));
   }
   ok(res, { sent: true });
 }));
 
 /* ---------- Continue with Google ---------- */
 
-const googleSchema = z.object({
-  credential: z.string().min(100).max(5000),
-  role: z.enum(['creator', 'brand']).optional(),
-});
+// `credential` is the signed ID token Google's button gives the browser. We verify it with Google's keys.
+const googleSchema = z.object({ credential: z.string().min(100).max(5000) });
 
+/**
+ * POST /auth/google  { credential }
+ * Verifies the Google token, then: existing account (same Google id or same email) → logged in;
+ * new person → account created (email already verified by Google, no role yet) → logged in.
+ */
 authRouter.post('/google', rateLimits.login, validate({ body: googleSchema }), h(async (req, res) => {
-  const { credential, role } = input<{ credential: string; role?: 'creator' | 'brand' }>(req);
+  const { credential } = input<{ credential: string }>(req);
   const g = await verifyGoogleCredential(credential);
   if (!g.emailVerified) throw new AppError('FORBIDDEN', 'errors.googleNotVerified');
   let user = await UserModel.findOne({ $or: [{ googleId: g.sub }, { email: g.email }] });
@@ -182,14 +176,14 @@ authRouter.post('/google', rateLimits.login, validate({ body: googleSchema }), h
   } else {
     const now = new Date();
     user = await UserModel.create({
-      name: g.name.slice(0, 60), email: g.email, googleId: g.sub, role: role ?? null, emailVerifiedAt: now,
+      // No password (Google-only account) and no role yet: the next screen asks "creator or brand?".
+      name: g.name.slice(0, 60), email: g.email, googleId: g.sub, role: null, emailVerifiedAt: now,
       preferredLanguage: req.get('accept-language')?.startsWith('en') ? 'en' : 'gu',
       consents: [
         { type: 'terms', version: POLICY_VERSION, acceptedAt: now, ip: req.ip },
         { type: 'privacy', version: POLICY_VERSION, acceptedAt: now, ip: req.ip },
       ],
     });
-    if (role) await createProfile(String(user._id), role, user.name);
   }
   const accessToken = await startSession(req, res, user, 'user');
   ok(res, { accessToken, user: await meView(String(user._id)) });
@@ -197,6 +191,12 @@ authRouter.post('/google', rateLimits.login, validate({ body: googleSchema }), h
 
 /* ---------- login ---------- */
 
+/**
+ * POST /auth/login  { email, password }
+ * Right password + verified email → { accessToken, user } (+ refresh cookie).
+ * Right password but email never verified → { needsVerification, ticket, email } and a code is emailed.
+ * Wrong email or password → 401 errors.badCredentials (same message for both, on purpose).
+ */
 authRouter.post('/login', rateLimits.login, validate({ body: loginSchema }), h(async (req, res) => {
   const { email: addr, password } = input<{ email: string; password: string }>(req);
   const user = await checkCredentials(addr, password);
@@ -211,6 +211,7 @@ authRouter.post('/login', rateLimits.login, validate({ body: loginSchema }), h(a
   ok(res, { accessToken, user: await meView(String(user._id)) });
 }));
 
+/** POST /auth/refresh  (no body; uses the httpOnly cookie) → new access token. Called on page load and after 401s. */
 authRouter.post('/refresh', originCheck(true), rateLimits.refresh, h(async (req, res) => {
   const { user, accessToken } = await refreshSession(req, res, 'user');
   ok(res, { accessToken, user: await meView(String(user._id)) });
@@ -229,16 +230,18 @@ authRouter.post('/logout-all', authenticate('app'), h(async (req, res) => {
 
 /* ---------- forgot / reset / change password ---------- */
 
+/** POST /auth/password/forgot  { email } → emails a 1-hour reset link if the account exists. Same reply either way. */
 authRouter.post('/password/forgot', rateLimits.emailLinks, validate({ body: emailOnlySchema }), h(async (req, res) => {
   const user = await UserModel.findOne({ email: input<{ email: string }>(req).email });
   if (user && user.status === 'active' && !(await recentlySent(user._id, 'reset_password'))) {
     const token = await createEmailToken(user._id, 'reset_password');
     const area = user.role === 'admin' ? 'admin' : 'app';
-    void sendSafely(emails.reset(user.email, user.name, emailLink('/reset-password', token, area)));
+    sendInBackground(emails.reset(user.email, user.name, emailLink('/reset-password', token, area)));
   }
   ok(res, { sent: true }); // identical whether or not the email exists
 }));
 
+/** POST /auth/password/reset  { token, password, confirmPassword } → new password, every device logged out. */
 authRouter.post('/password/reset', rateLimits.emailLinks, validate({ body: resetPasswordSchema }), h(async (req, res) => {
   const d = input<{ token: string; password: string }>(req);
   // Check everything first; only use up the link when the new password is accepted.
@@ -251,16 +254,6 @@ authRouter.post('/password/reset', rateLimits.emailLinks, validate({ body: reset
   await setPassword(user, d.password);
   ok(res, { done: true, area: user.role === 'admin' ? 'admin' : 'app' });
 }));
-
-async function setPassword(user: UserDoc, password: string) {
-  user.passwordHash = await hashPassword(password);
-  user.passwordChangedAt = new Date();
-  user.emailVerifiedAt ??= new Date(); // the user just proved they own the email
-  await user.save();
-  await endAllSessions(String(user._id), 'password_changed');
-  await clearLoginFailures(user.email);
-  void sendSafely(emails.passwordChanged(user.email, user.name));
-}
 
 async function changePassword(req: Request, kind: 'user' | 'admin') {
   const d = input<{ currentPassword: string; password: string }>(req);
@@ -281,14 +274,20 @@ authRouter.post('/password/change', authenticate('app'), rateLimits.login, valid
   ok(res, { accessToken });
 }));
 
-/** Only for older accounts created before role selection moved into signup. */
-authRouter.post('/role', authenticate('app'), validate({ body: roleSelectSchema }), h(async (req, res) => {
+/**
+ * "What brings you here?" — the one-time choice made right after the first login (email or Google).
+ * Creates the matching profile. The role can never be changed afterwards (the filter `role: null` makes it one-shot).
+ */
+authRouter.post('/role', authenticate('app'), rateLimits.authed, validate({ body: roleSelectSchema }), h(async (req, res) => {
   const { role } = input<{ role: 'creator' | 'brand' }>(req);
   const userId = req.auth!.id;
-  const updated = await UserModel.findOneAndUpdate({ _id: userId, role: null }, { $set: { role } }, { new: true });
-  if (!updated) throw new AppError('CONFLICT', 'errors.roleAlreadySet');
-  await createProfile(userId, role, updated.name);
-  invalidateUser(userId);
+  // One transaction: either the role AND the profile are saved, or neither (no half-made accounts).
+  await withTransaction(async (session) => {
+    const updated = await UserModel.findOneAndUpdate({ _id: userId, role: null }, { $set: { role } }, { new: true, session });
+    if (!updated) throw new AppError('CONFLICT', 'errors.roleAlreadySet');
+    await createProfile(userId, role, updated.name, session);
+  });
+  invalidateUser(userId); // the cached role is now stale
   ok(res, { user: await meView(userId) });
 }));
 

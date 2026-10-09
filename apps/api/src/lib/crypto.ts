@@ -1,3 +1,10 @@
+/**
+ * CRYPTO HELPERS (Node's built-in crypto only, no home-made algorithms).
+ *   randomToken  unguessable random strings (session cookies, email links, tickets)
+ *   sha256/hmac  one-way fingerprints, so the database stores hashes instead of real tokens/codes
+ *   encrypt/decrypt  AES-256-GCM for secrets we must read back later (the admins' authenticator keys).
+ *                    Keys come from DATA_ENCRYPTION_KEY(S); the same keys must be used locally and on Render.
+ */
 import crypto from 'node:crypto';
 import { env } from '../config/env';
 

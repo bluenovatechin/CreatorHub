@@ -1,3 +1,6 @@
+/**
+ * TESTS: email HTML is safe (user text is escaped) and the code email contains no personal details.
+ */
 import { describe, expect, it } from 'vitest';
 import { emails, renderHtml } from '../src/providers/email';
 
@@ -11,10 +14,10 @@ describe('email HTML', () => {
     expect(html).toContain('Set a new password');
   });
 
-  it('keeps the verification email minimal: no personal details, just the button', () => {
-    const msg = emails.verify('a@example.com', 'Riya Shah', 'http://localhost:5180/verify-email#token=abc_DEF-123');
-    expect(msg.text).not.toContain('Riya');
+  it('keeps the signup code email minimal: just the code, no personal details', () => {
+    const msg = emails.otp('a@example.com', '123456');
+    expect(msg.code).toBe('123456');
     expect(msg.text).not.toContain('+91');
-    expect(renderHtml(msg)).toContain('Verify my email');
+    expect(renderHtml(msg)).toContain('123456');
   });
 });

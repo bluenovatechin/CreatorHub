@@ -1,3 +1,10 @@
+/**
+ * LOGIN-RELATED collections (all store hashes, never the real secret):
+ *   RefreshToken   one per logged-in device ("keep me logged in" cookie), rotated on every use
+ *   EmailToken     one-time email secrets: reset link, 6-digit signup code, signup ticket
+ *   LoginThrottle  failed-login counter per email (5 wrong passwords → 15-minute lock)
+ * Expired documents are deleted automatically by MongoDB (TTL indexes).
+ */
 import { Schema, model } from 'mongoose';
 
 /** Refresh tokens: only the SHA-256 hash is stored. Rotated on every use. */
@@ -19,13 +26,16 @@ const refreshTokenSchema = new Schema(
 refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 export const RefreshTokenModel = model('RefreshToken', refreshTokenSchema);
 
-/** Single-use email links (verify email, reset password). Only the hash is stored. */
+/**
+ * One-time email secrets. Only hashes are stored, never the real value. Three kinds (`purpose`):
+ *   reset_password  the link in a "forgot password" email (valid 1 hour, works once)
+ *   verify_otp      the 6-digit signup code (valid 10 minutes, max 5 wrong tries)
+ *   signup_ticket   a random value only the signing-up browser tab holds; it says WHICH account the code is for
+ */
 const emailTokenSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    // signup_ticket: held only by the browser tab that signed up; lets that tab continue once the email is verified.
-    // verify_otp: 6-digit email code (codeHash + attempts). signup_ticket: held only by the browser tab that signed up.
-    purpose: { type: String, enum: ['verify_email', 'reset_password', 'signup_ticket', 'verify_otp'], required: true },
+    purpose: { type: String, enum: ['reset_password', 'signup_ticket', 'verify_otp'], required: true },
     tokenHash: { type: String, required: true, unique: true },
     expiresAt: { type: Date, required: true },
     usedAt: Date,
@@ -33,7 +43,7 @@ const emailTokenSchema = new Schema(
     attempts: { type: Number, default: 0 }, // verify_otp only
     // signup_ticket only: details from a repeated, unfinished signup. Applied only after the emailed code is entered,
     // so whoever proves they own the inbox ends up with the password THEY chose.
-    pending: { type: new Schema({ name: String, role: String, passwordHash: String }, { _id: false }), default: undefined },
+    pending: { type: new Schema({ name: String, passwordHash: String }, { _id: false }), default: undefined },
   },
   { timestamps: true },
 );

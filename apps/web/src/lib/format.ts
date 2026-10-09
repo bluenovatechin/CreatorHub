@@ -1,3 +1,7 @@
+/**
+ * DISPLAY HELPERS: category/city names in the current language, dates in Indian format (IST),
+ * and the colour for each status pill.
+ */
 import { CATEGORIES, CITIES, catalogLabel, formatINR } from '@bluenova/shared';
 import type { Tone } from '@bluenova/ui';
 
