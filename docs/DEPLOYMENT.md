@@ -93,7 +93,7 @@ On Render, use the Shell: `npm run seed:superadmin:prod -w @bluenova/api -- --em
 | Symptom | Likely cause → fix |
 |---|---|
 | "Can't reach the API server" | The API isn't running, or the database is blocked → check the terminal / Atlas Network Access |
-| Live site: first click takes a minute | The free Render server is waking up |
+| Live site: "Can't reach the Bluenova server" or the first click takes a minute | The free Render server slept after 15 min without visitors. `.github/workflows/keep-api-awake.yml` pings it every 10 min (GitHub → Actions shows the runs). The website also waits and retries page data while it wakes, and shows a "starting the server" note on login/signup. |
 | Signup code never arrives (live) | Render blocks SMTP → use Brevo or `TEST_MODE` (§4) |
 | 403 on every action (live) | `CORS_ORIGINS` on Render doesn't contain the exact Vercel address |
 | Admin authenticator code always wrong | The phone's clock is off, or an old key is in the app → re-run `seed:superadmin` and re-add the key; `DATA_ENCRYPTION_KEY` must match |

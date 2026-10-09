@@ -53,7 +53,19 @@ export function createApiClient<U = unknown>(opts: ApiClientOptions) {
   /** Uses the refresh cookie to get a new access token. Returns null if there is no valid session. */
   function refresh(): Promise<RefreshResult<U> | null> {
     if (!refreshing) {
-      refreshing = fetch(`${base}${opts.refreshPath}`, { method: 'POST', credentials: 'include' })
+      const send = () => fetch(`${base}${opts.refreshPath}`, { method: 'POST', credentials: 'include' });
+      refreshing = (async () => {
+        let res = await send();
+        // Server waking up? Only retry answers that prove the login cookie was NOT used yet:
+        // 502 = the host couldn't reach the API at all; 503 = the API is up but its database isn't (rejected first).
+        // (A 504 timeout might have been processed, and re-sending a used cookie looks like theft, so never retry that.)
+        for (const waitSeconds of [3, 5, 8, 12, 15, 15, 15]) {
+          if (res.status !== 502 && res.status !== 503) break;
+          await new Promise((r) => setTimeout(r, waitSeconds * 1000));
+          res = await send();
+        }
+        return res;
+      })()
         .then(async (res) => {
           if (!res.ok) return null;
           const body = await parse(res);
@@ -73,11 +85,20 @@ export function createApiClient<U = unknown>(opts: ApiClientOptions) {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    const send = () => fetch(`${base}${path}`, {
+      method, headers, credentials: 'include', body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
     let res: Response;
     try {
-      res = await fetch(`${base}${path}`, {
-        method, headers, credentials: 'include', body: body !== undefined ? JSON.stringify(body) : undefined,
-      });
+      res = await send();
+      // The free API server sleeps when nobody uses it and needs up to ~1 minute to wake up. Meanwhile the host
+      // answers 502/503/504. READ requests (GET) are safe to repeat, so wait and try again (≈ 70 s in total).
+      // Writes (POST/PUT/PATCH) are never repeated automatically: that could, for example, sign someone up twice.
+      for (const waitSeconds of [3, 5, 8, 12, 15, 15, 15]) {
+        if (method !== 'GET' || ![502, 503, 504].includes(res.status)) break;
+        await new Promise((r) => setTimeout(r, waitSeconds * 1000));
+        res = await send();
+      }
     } catch {
       throw new ApiError(0, 'NETWORK', 'errors.network');
     }

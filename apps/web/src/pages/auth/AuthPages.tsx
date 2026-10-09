@@ -236,6 +236,22 @@ function GoogleLogo() {
   );
 }
 
+/**
+ * Opening the login/signup page loads GET /config, which also WAKES the sleeping free server.
+ * If that takes more than 3 seconds, tell the person what's happening (instead of a surprise error later).
+ */
+function ServerWakeNotice() {
+  const { t } = useTranslation();
+  const { status } = useAppConfig();
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setSlow(true), 3000);
+    return () => clearTimeout(id);
+  }, []);
+  if (status !== 'loading' || !slow) return null;
+  return <div className="mb-5"><Alert tone="amber">{t('auth.serverWaking')}</Alert></div>;
+}
+
 /* ---------- Log in ---------- */
 
 export function LoginPage() {
@@ -265,6 +281,7 @@ export function LoginPage() {
   return (
     <AuthLayout>
       <Heading title={t('auth.loginTitle')} text={t('auth.loginSubtitle')} />
+      <ServerWakeNotice />
       <div className="mb-5"><GoogleButton /></div>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
         <Field label={t('auth.email')} error={fe(errors.email?.message)}>
@@ -324,6 +341,7 @@ export function SignupPage() {
   return (
     <AuthLayout>
       <Heading title={t('auth.signupTitle')} text={t('auth.signupSubtitle')} />
+      <ServerWakeNotice />
       <div className="mb-5"><GoogleButton /></div>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
         <Field label={t('auth.name')} error={fe(errors.name?.message)} required>

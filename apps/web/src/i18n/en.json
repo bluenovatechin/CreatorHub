@@ -256,7 +256,8 @@
     "roleContinue": "Continue",
     "continueGoogle": "Continue with Google",
     "orEmail": "or use your email",
-    "googleLoading": "Google sign-in is still loading. Please try again in a moment."
+    "googleLoading": "Google sign-in is still loading. Please try again in a moment.",
+    "serverWaking": "Starting the server… this takes up to a minute after a quiet period. You can keep typing."
   },
   "status": {
     "creator": {
@@ -793,7 +794,7 @@
       "custom": "Invalid value",
       "invalid_literal": "Please accept to continue"
     },
-    "serverDown": "Can't reach the Bluenova server right now. Please try again in a minute.",
+    "serverDown": "The Bluenova server is starting up after a quiet period (this can take up to a minute). Please try again in a few seconds.",
     "emailNotVerifiedYet": "Your email is not verified yet. Click the link in the email first.",
     "linkUsed": "This link was already used, or a newer email replaced it. Please use the link from the newest email, or request a new one.",
     "linkExpired": "This link has expired. Please request a new one.",

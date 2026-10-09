@@ -42,7 +42,7 @@ const MESSAGES: Record<string, string> = {
   'errors.CONFLICT': 'Already done (e.g. creator already on this shortlist).',
   'errors.RATE_LIMITED': 'Too many requests. Please wait.',
   'errors.network': 'No internet connection.',
-  'errors.serverDown': "Can't reach the API server. Check the terminal: it may not be running, or the database may be blocked (Atlas → Network Access).",
+  'errors.serverDown': "Can't reach the API server. Live site: it may be waking up after a quiet period, so try again in a minute. Locally: check the terminal (API not running, or Atlas → Network Access blocking your IP).",
 };
 
 export function errorText(err: unknown): string {

@@ -256,7 +256,8 @@
     "roleContinue": "આગળ વધો",
     "continueGoogle": "Google થી આગળ વધો",
     "orEmail": "અથવા તમારા email થી",
-    "googleLoading": "Google sign-in હજુ load થઈ રહ્યું છે. થોડી વારમાં ફરી પ્રયાસ કરો."
+    "googleLoading": "Google sign-in હજુ load થઈ રહ્યું છે. થોડી વારમાં ફરી પ્રયાસ કરો.",
+    "serverWaking": "Server શરૂ થઈ રહ્યું છે… થોડા સમય પછી પહેલી વાર એક મિનિટ જેટલો સમય લાગે. તમે લખવાનું ચાલુ રાખી શકો છો."
   },
   "status": {
     "creator": {
@@ -793,7 +794,7 @@
       "custom": "અમાન્ય value",
       "invalid_literal": "આગળ વધવા સ્વીકારો"
     },
-    "serverDown": "હાલ Bluenova server સુધી પહોંચી શકાતું નથી. એક મિનિટ પછી ફરી પ્રયાસ કરો.",
+    "serverDown": "થોડા સમય ઉપયોગ ન થવાથી Bluenova server શરૂ થઈ રહ્યું છે (એક મિનિટ જેટલો સમય લાગી શકે). થોડી સેકન્ડ પછી ફરી પ્રયાસ કરો.",
     "emailNotVerifiedYet": "તમારું email હજુ verify નથી થયું. પહેલા email માંની link પર click કરો.",
     "linkUsed": "આ link પહેલેથી વપરાઈ ગઈ છે, અથવા નવા email એ તેને બદલી નાખી છે. સૌથી નવા email ની link વાપરો, અથવા નવી link માંગો.",
     "linkExpired": "આ link expire થઈ ગઈ છે. નવી link માંગો.",
