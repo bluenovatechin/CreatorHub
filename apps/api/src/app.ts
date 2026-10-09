@@ -16,6 +16,7 @@ import hpp from 'hpp';
 import mongoose from 'mongoose';
 import pinoHttp from 'pino-http';
 import { env } from './config/env';
+import { AppError } from './lib/errors';
 import { logger } from './lib/logger';
 import { ok } from './lib/http';
 import { authenticate } from './middleware/auth';
@@ -41,7 +42,9 @@ export function createApp() {
     customProps: (req) => ({ userId: (req as express.Request).auth?.id }),
     autoLogging: { ignore: (req) => req.url === '/healthz' },
     // Normal requests (including expected 401s) are not logged in development; server errors always are.
-    customLogLevel: (_req, res, err) => (err || res.statusCode >= 500 ? 'error' : env.NODE_ENV === 'development' ? 'silent' : 'info'),
+    // 503 = database not connected yet: the terminal already shows the Atlas message once, so don't repeat it per request.
+    customLogLevel: (_req, res, err) => (res.statusCode === 503 ? (env.NODE_ENV === 'development' ? 'silent' : 'warn')
+      : err || res.statusCode >= 500 ? 'error' : env.NODE_ENV === 'development' ? 'silent' : 'info'),
   }));
   app.use(helmet({
     contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
@@ -65,6 +68,8 @@ export function createApp() {
 
   const api = express.Router();
   api.use(noStore);
+  // While MongoDB isn't connected (still starting, or Atlas blocking this IP), answer clearly instead of hanging.
+  api.use((_req, _res, next) => next(mongoose.connection.readyState === 1 ? undefined : new AppError('UNAVAILABLE', 'errors.serverDown')));
   api.use(originCheck(false));
   api.use('/auth', authRouter);
   // Public feature flags the frontends need (nothing sensitive).

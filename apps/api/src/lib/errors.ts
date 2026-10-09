@@ -5,7 +5,7 @@
  */
 export type ErrorCode =
   | 'UNAUTHENTICATED' | 'FORBIDDEN' | 'NOT_FOUND' | 'VALIDATION_ERROR' | 'INVALID_STATE'
-  | 'CONFLICT' | 'RATE_LIMITED' | 'INVALID_OTP' | 'STEP_UP_REQUIRED' | 'INTERNAL';
+  | 'CONFLICT' | 'RATE_LIMITED' | 'INVALID_OTP' | 'STEP_UP_REQUIRED' | 'INTERNAL' | 'UNAVAILABLE';
 
 const STATUS: Record<ErrorCode, number> = {
   UNAUTHENTICATED: 401,
@@ -18,6 +18,7 @@ const STATUS: Record<ErrorCode, number> = {
   INVALID_OTP: 400,
   STEP_UP_REQUIRED: 401,
   INTERNAL: 500,
+  UNAVAILABLE: 503, // e.g. the database isn't connected yet
 };
 
 /** An error that is safe to show to the client. `message` is an i18n key. */

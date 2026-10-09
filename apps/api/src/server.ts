@@ -15,10 +15,6 @@ async function connectWithRetry() {
   for (;;) {
     try {
       await connectDb();
-      if (warned) {
-        // eslint-disable-next-line no-console
-        console.log('\n  ✅ Database connected.\n');
-      }
       return;
     } catch (err) {
       if (!warned) {
@@ -42,24 +38,14 @@ async function connectWithRetry() {
 }
 
 async function main() {
-  await connectWithRetry();
+  // Listen FIRST, so the websites get a clear "database not connected yet" answer (503) instead of
+  // "connection refused" while MongoDB is unreachable (e.g. Atlas blocking a new IP address).
   const app = createApp();
   const server = app.listen(env.PORT, () => {
-    if (env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
-      console.log([
-        '',
-        '  ✅ Bluenova is running',
-        '     Website:      http://localhost:5180',
-        '     Admin panel:  http://localhost:5181',
-        '',
-      ].join('\n'));
-    } else {
-      logger.info(`API listening on port ${env.PORT}`);
-    }
+    if (env.NODE_ENV !== 'development') logger.info(`API listening on port ${env.PORT}`);
   });
-  startScheduler();
 
+  // Ctrl+C / Render stopping the service: close cleanly (registered early, the DB wait below can be long).
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'shutting down');
     server.close();
@@ -68,6 +54,19 @@ async function main() {
   };
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
+
+  await connectWithRetry();
+  startScheduler(); // background jobs need the database
+  if (env.NODE_ENV === 'development') {
+    // eslint-disable-next-line no-console
+    console.log([
+      '',
+      '  ✅ Bluenova is running (database connected)',
+      '     Website:      http://localhost:5180',
+      '     Admin panel:  http://localhost:5181',
+      '',
+    ].join('\n'));
+  }
 }
 
 main().catch((err) => {
