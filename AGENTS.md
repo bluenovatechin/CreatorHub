@@ -85,7 +85,7 @@ npm run build           # production builds
   - **Pricing page shows no numbers.** Payments stay switched off; no payment gateway.
 - **Formats (2026-10-10): Reel, Story and Collab only** (`DELIVERABLE_TYPES`). Collab = one post on both the creator's and the brand's account, only if both agree. Older formats (`LEGACY_DELIVERABLE_TYPES`) stay readable on old records but can't be chosen.
 - **Cities:** `CITIES` in `packages/shared/src/catalog.ts` lists all Gujarat district HQs, municipal corporations and main towns. Never rename/remove a key (stored in the database). Creators and brands also choose several **areas**.
-- **Terms:** signup and the creator/brand agreements use `TermsBox` (apps/web/src/components/TermsBox.tsx): the tick unlocks only after scrolling to the end. On the signup page, "Continue with Google" also waits for the tick.
+- **Terms:** signup and the creator/brand agreements use `TermsBox` (apps/web/src/components/TermsBox.tsx): the tick unlocks only after scrolling to the end. "Continue with Google" is always available on signup (the page states that continuing means accepting the Terms); the tick is only for the email + password form.
 
 ## Gotchas
 - **Dev proxy:** the dev servers proxy `/api` to `http://localhost:4000`. To try the deployed API locally, set `API_PROXY_TARGET`.

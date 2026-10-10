@@ -172,8 +172,7 @@ export function GoogleLogo() {
   );
 }
 
-/** `blockedHint`: when set, the button is disabled and the hint explains why (e.g. accept the terms first). */
-export function GoogleButton({ blockedHint }: { blockedHint?: string } = {}) {
+export function GoogleButton() {
   const { t } = useTranslation();
   const { googleClientId, status } = useAppConfig();
   const [params] = useSearchParams();
@@ -211,8 +210,7 @@ export function GoogleButton({ blockedHint }: { blockedHint?: string } = {}) {
       <button
         type="button"
         onClick={start}
-        disabled={busy || !!blockedHint}
-        title={blockedHint}
+        disabled={busy}
         className="flex min-h-11 w-full items-center justify-center gap-3 rounded-ctl border border-line-strong bg-white px-4 text-sm font-semibold text-ink hover:bg-bg disabled:opacity-60"
       >
         <GoogleLogo />

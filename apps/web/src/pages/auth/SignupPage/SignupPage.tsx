@@ -35,6 +35,7 @@ export function SignupPage() {
     resolver: zodResolver(signupSchema),
   });
   const password = watch('password') ?? '';
+  // Option 2 (email + password) needs the terms box read and ticked; Google (option 1) never waits for it.
   const accepted = watch('acceptTerms') === true;
   const terms = useTermsRead(); // the tick unlocks only after the terms box was scrolled to the end
 
@@ -65,8 +66,11 @@ export function SignupPage() {
         <Heading title={t('auth.signupTitle')} text={t('auth.signupSubtitle')} />
         <ServerWakeNotice />
         <div className="mb-5">
-          <GoogleButton blockedHint={accepted ? undefined : t('terms.acceptFirst')} />
-          {!accepted && <p className="mt-1.5 text-center text-xs text-ink-muted">{t('terms.acceptFirst')}</p>}
+          {/* Option 1: Google, always available. Accepting the terms is stated here (like the login page). */}
+          <GoogleButton />
+          <p className="mt-1.5 text-center text-xs text-ink-muted">
+            {t('terms.googleNotice')} <Link to="/terms" target="_blank" className="font-semibold text-primary">{t('legal.terms')}</Link>
+          </p>
         </div>
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
           <Field label={t('auth.name')} error={fe(errors.name?.message)} required>
