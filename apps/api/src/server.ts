@@ -1,11 +1,12 @@
 /**
  * API ENTRY POINT (npm run dev / npm start runs this file).
  * Order: connect to MongoDB (retrying with a clear message) → build the Express app (app.ts) → listen on PORT
- * → start background jobs (jobs/scheduler.ts). Ctrl+C / SIGTERM closes everything cleanly.
+ * → create missing database indexes (production only) → start background jobs (jobs/scheduler.ts).
+ * Ctrl+C / SIGTERM closes everything cleanly.
  */
 import { env } from './config/env';
 import { createApp } from './app';
-import { connectDb, disconnectDb } from './db';
+import { connectDb, disconnectDb, ensureIndexes } from './db';
 import { startScheduler } from './jobs/scheduler';
 import { logger } from './lib/logger';
 
@@ -56,9 +57,12 @@ async function main() {
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
   await connectWithRetry();
+  // Production connects with autoIndex off (db.ts), so missing indexes are created here once per start.
+  if (env.NODE_ENV === 'production') await ensureIndexes();
   startScheduler(); // background jobs need the database
   // One line in Render's log showing how emails will be sent (no secrets), to make email problems easy to spot.
   logger.info({ emailProvider: env.EMAIL_PROVIDER, emailFrom: env.EMAIL_FROM, testMode: env.TEST_MODE }, 'email settings');
+  if (!env.ADMIN_TOTP_REQUIRED) logger.warn('ADMIN_TOTP_REQUIRED=false: admin login does NOT ask for the authenticator code (testing only)');
   if (env.NODE_ENV === 'development') {
     // eslint-disable-next-line no-console
     console.log([

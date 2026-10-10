@@ -39,6 +39,7 @@ The diagrams are written in [Mermaid](https://mermaid.js.org/). GitHub and VS Co
    - [Payments (only when switched on)](#45-payments-only-when-switched-on)
 5. [Pop-up windows (dialogs/modals) in the apps](#5-pop-up-windows-dialogs--modals)
 6. [Background jobs and emails](#6-background-jobs-and-emails)
+7. [Work, applications, messages, disputes (October 2026)](#7-work-applications-messages-disputes-october-2026)
 
 ---
 
@@ -386,3 +387,33 @@ The 6-digit code step is **not** a pop-up: it replaces the signup or login form 
 | "Your password was changed" | Reset, change, or an admin setting a password | `emails.passwordChanged` |
 
 All emails are sent **in the background** (`sendInBackground`), so a slow mail server never slows down the page. If sending fails, the reason is logged. In development, the code or link is also printed in the terminal.
+
+---
+
+## 7. Work, applications, messages, disputes (October 2026)
+
+### 7.1 Deal work: draft → reviews → live post → completed
+| Step | Who | Screen | API | Next |
+|---|---|---|---|---|
+| Send a draft link | creator | `/creator/deals/:id` (or `/creator/intro-reel`) → work panel | `POST /deals/:id/draft` | DRAFT_SUBMITTED; team notified |
+| Check the draft | team | admin `/deals` (Work review) | `POST /admin/deals/:id/draft-review` | brand deal: BRAND_REVIEW (brand notified) · intro reel: APPROVED · or REVISION_REQUESTED (note required) |
+| Review the draft | brand | `/brand/deals/:id` | `POST /deals/:id/review` | APPROVED, or REVISION_REQUESTED (note required, limited by the campaign's revisions) |
+| Send the live link | creator | work panel | `POST /deals/:id/live` | LIVE_SUBMITTED |
+| Check the live post | team | admin `/deals` | `POST /admin/deals/:id/live-review` | VERIFY → COMPLETED (campaign completes when it was the last running deal) · REJECT → APPROVED (fix and resend) |
+
+Errors: wrong link type (400), someone else's deal (404), wrong step or paused by a dispute (409 `errors.dealDisputed`).
+
+### 7.2 Applications
+Creator: `/creator/opportunities` → **Apply** (pitch + optional price) → "My applications" shows Applied / Shortlisted / Not selected (with the team's note) / Withdrawn.
+Team: admin campaign page → **Applications** → **Shortlist** (creates the shortlist item at the payout entered) or **Decline**. The brand only ever sees the shortlist.
+
+### 7.3 Messages with the team
+`/creator/messages` or `/brand/messages` → New message (optionally "about this deal" from a deal page) → the team answers in admin `/inbox`. Replies show as "Bluenova team". The team can close a conversation; a new message re-opens it.
+
+### 7.4 Disputes, reports, ratings
+- **Report a problem** (brand deal page or creator deal page) → the deal is paused (DISPUTED) → campaign manager in admin `/trust` chooses **Continue** (back to where it was) or **Cancel** (no money moves automatically) → both sides notified with the note.
+- **Report this campaign** (creator's offer page) / **Report this creator** (brand's deal page) → reviewers/campaign managers mark it actioned or dismissed in admin `/trust?tab=reports`.
+- After a deal is **completed**, both sides see a rating box (1–5 stars, optional comment). Only the team sees ratings.
+
+### 7.5 Admin: lost authenticator phone
+Login → password → **Lost your phone?** → one recovery code → Settings → Security opens → **Set up a new phone** (password → new key → first code from the new phone). New recovery codes: Settings → Security → **Create new recovery codes**.

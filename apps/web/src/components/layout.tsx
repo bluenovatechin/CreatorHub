@@ -4,11 +4,12 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { usePageMeta } from '../lib/seo';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Bell, Briefcase, CheckCircle2, Handshake, Home, LayoutDashboard, LogOut, Mail, Megaphone, Menu, Phone, Send,
-  Settings, ShieldCheck, Sparkles, X,
+  Bell, Briefcase, CheckCircle2, Handshake, Home, LayoutDashboard, LogOut, Mail, Megaphone, Menu, MessagesSquare, Phone, Send,
+  Settings, ShieldCheck, Sparkles, UserRound, X,
 } from 'lucide-react';
 import { Avatar, cx } from '@bluenova/ui';
 import { api } from '../lib/api';
@@ -77,6 +78,10 @@ function Footer() {
           <ul className="mt-3 space-y-2 text-sm">
             <li><Link className="hover:text-white" to="/for-creators">{t('nav.forCreators')}</Link></li>
             <li><Link className="hover:text-white" to="/for-brands">{t('nav.forBrands')}</Link></li>
+            <li><Link className="hover:text-white" to="/how-it-works">{t('nav.howItWorks')}</Link></li>
+            <li><Link className="hover:text-white" to="/pricing">{t('nav.pricing')}</Link></li>
+            <li><Link className="hover:text-white" to="/faq">{t('nav.faq')}</Link></li>
+            <li><Link className="hover:text-white" to="/contact">{t('nav.contact')}</Link></li>
             <li><Link className="hover:text-white" to="/signup">{t('nav.signup')}</Link></li>
             <li><Link className="hover:text-white" to="/login">{t('nav.login')}</Link></li>
             <li><Link className="hover:text-white" to="/privacy">{t('legal.privacy')}</Link></li>
@@ -108,6 +113,8 @@ export function PublicLayout() {
   const links = [
     { to: '/for-creators', label: t('nav.forCreators') },
     { to: '/for-brands', label: t('nav.forBrands') },
+    { to: '/how-it-works', label: t('nav.howItWorks') },
+    { to: '/pricing', label: t('nav.pricing') },
   ];
   return (
     <div className="flex min-h-screen flex-col">
@@ -158,6 +165,7 @@ export function PublicLayout() {
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
+  usePageMeta({ index: false }); // login/signup screens are not for search engines
   const points = [
     { icon: CheckCircle2, text: t('auth.side1') },
     { icon: Handshake, text: t('auth.side2') },
@@ -201,6 +209,7 @@ interface NavItem { to: string; label: string; icon: typeof Home; end?: boolean 
 
 export function AppLayout({ area }: { area: 'creator' | 'brand' }) {
   const { t } = useTranslation();
+  usePageMeta({ title: t(area === 'creator' ? 'meta.creatorArea' : 'meta.brandArea'), index: false }); // private area
   const { me, signOut } = useAuth();
   const navigate = useNavigate();
   const unread = useQuery({
@@ -216,10 +225,13 @@ export function AppLayout({ area }: { area: 'creator' | 'brand' }) {
         { to: '/creator/opportunities', label: t('nav.opportunities'), icon: Sparkles },
         { to: '/creator/offers', label: t('nav.offers'), icon: Mail },
         { to: '/creator/deals', label: t('nav.deals'), icon: Handshake },
+        { to: '/creator/messages', label: t('nav.messages'), icon: MessagesSquare },
+        { to: '/creator/profile', label: t('nav.profile'), icon: UserRound },
         { to: '/creator/settings', label: t('nav.settings'), icon: Settings },
       ]
       : [
         { to: '/creator/status', label: t('nav.dashboard'), icon: LayoutDashboard },
+        { to: '/creator/messages', label: t('nav.messages'), icon: MessagesSquare },
         { to: '/creator/settings', label: t('nav.settings'), icon: Settings },
       ]
     : me?.brand?.status === 'ACTIVE'
@@ -227,10 +239,12 @@ export function AppLayout({ area }: { area: 'creator' | 'brand' }) {
         { to: '/brand', label: t('nav.dashboard'), icon: LayoutDashboard, end: true },
         { to: '/brand/campaigns', label: t('nav.campaigns'), icon: Megaphone },
         { to: '/brand/deals', label: t('nav.deals'), icon: Handshake },
+        { to: '/brand/messages', label: t('nav.messages'), icon: MessagesSquare },
         { to: '/brand/settings', label: t('nav.settings'), icon: Settings },
       ]
       : [
         { to: '/brand/onboarding', label: t('nav.dashboard'), icon: Briefcase },
+        { to: '/brand/messages', label: t('nav.messages'), icon: MessagesSquare },
         { to: '/brand/settings', label: t('nav.settings'), icon: Settings },
       ];
 

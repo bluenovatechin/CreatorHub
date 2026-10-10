@@ -2,31 +2,34 @@
  * BUILDS THE EXPRESS APP: security middleware first, then every route group.
  * Every request passes through, in this order:
  *   requestId → logging → helmet (security headers) → CORS → JSON body (max 100kb) → cookies
- *   → mongoSanitize (blocks $-operators in input) → hpp → global rate limit → /api/v1 router
+ *   → rejectMongoOperators ($-keys in input → 400) → rejectRepeatedQuery (?a=1&a=2 → 400) → global rate limit → /api/v1 router
  *   → (route-level: auth check → role check → input validation → handler) → error handler.
- * Route groups: /auth (auth.routes) · /me · /notifications · /admin/* · creators · brands · deals.
+ * Route groups: /auth (auth.routes) · /me · /notifications · /conversations (messages with the team) · /admin/*
+ * · creators · brands · deals · reports.
  * Docs: docs/ARCHITECTURE.md (request lifecycle) and docs/API.md (every endpoint).
  */
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
-import mongoSanitize from 'express-mongo-sanitize';
 import helmet from 'helmet';
-import hpp from 'hpp';
 import mongoose from 'mongoose';
 import pinoHttp from 'pino-http';
 import { env } from './config/env';
 import { AppError } from './lib/errors';
 import { logger } from './lib/logger';
 import { ok } from './lib/http';
-import { authenticate } from './middleware/auth';
+import { authenticate, authorize } from './middleware/auth';
 import { errorHandler, notFoundHandler } from './middleware/errors';
 import { noStore, originCheck, rateLimits, requestId } from './middleware/security';
-import { adminRouter } from './modules/admin/admin.routes';
-import { authRouter, meRouter } from './modules/auth/auth.routes';
-import { brandsRouter } from './modules/brands/brands.routes';
-import { creatorsRouter } from './modules/creators/creators.routes';
-import { dealsRouter, notificationsRouter } from './modules/deals/deals.routes';
+import { rejectMongoOperators, rejectRepeatedQuery } from './middleware/sanitize';
+import { adminRouter } from './modules/admin';
+import { authRouter, meRouter } from './modules/auth';
+import { brandsRouter } from './modules/brands';
+import { creatorsRouter } from './modules/creators';
+import { dealsRouter, notificationsRouter } from './modules/deals';
+import { conversationsRouter } from './modules/messages';
+import { reportsRouter } from './modules/trust';
+import { contactRouter } from './modules/contact';
 import { getSettings } from './models/system';
 
 export function createApp() {
@@ -56,8 +59,8 @@ export function createApp() {
   app.use(express.json({ limit: '100kb' }));
   app.use(express.urlencoded({ extended: false, limit: '100kb' }));
   app.use(cookieParser());
-  app.use(mongoSanitize());
-  app.use(hpp());
+  app.use(rejectMongoOperators);
+  app.use(rejectRepeatedQuery);
   app.use(rateLimits.global);
 
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
@@ -82,6 +85,9 @@ export function createApp() {
   });
   api.use('/me', authenticate('app'), rateLimits.authed, meRouter);
   api.use('/notifications', authenticate('app'), rateLimits.authed, notificationsRouter);
+  api.use('/conversations', authenticate('app'), authorize('creator', 'brand'), rateLimits.authed, conversationsRouter);
+  api.use('/reports', authenticate('app'), authorize('creator', 'brand'), rateLimits.authed, reportsRouter);
+  api.use('/contact', contactRouter); // public Contact page (no login; rate-limited)
   api.use('/admin', adminRouter);
   api.use(creatorsRouter);
   api.use(brandsRouter);

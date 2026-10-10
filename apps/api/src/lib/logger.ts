@@ -14,6 +14,7 @@ export const REDACT_PATHS = [
   '*.otp', '*.code', '*.pan', '*.account', '*.vpa', '*.password', '*.token',
   '*.accessToken', '*.refreshToken', '*.mfaToken', '*.phone', '*.totpSecret',
   '*.passwordHash', '*.currentPassword', '*.confirmPassword', '*.ticket', '*.credential', '*.codeHash', '*.tokenHash',
+  '*.codes', '*.secret', '*.otpauthUrl', '*.recoveryCodes', '*.pendingTotpSecret',
 ];
 
 export const logger = pino({

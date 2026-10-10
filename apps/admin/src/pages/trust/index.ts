@@ -1,0 +1,1 @@
+export { TrustPage } from './TrustPage';

@@ -24,6 +24,7 @@ const creatorProfileSchema = new Schema(
     gender: { type: String, enum: GENDERS },
     ageGroup: { type: String, enum: AGE_GROUPS },
     city: { type: String, enum: CITY_KEYS },
+    areas: [{ type: String, enum: CITY_KEYS }], // other cities they can make reels/stories in
     languages: [{ type: String, enum: LANGUAGES }],
     bio: String,
     categories: [{ type: String, enum: CATEGORY_KEYS }],
@@ -38,7 +39,8 @@ const creatorProfileSchema = new Schema(
     },
     reels: [{ _id: false, url: String, addedAt: Date }],
     rateCardPaise: {
-      REEL: Number, POST: Number, STORY: Number, STORY_WITH_LINK: Number, CAROUSEL: Number,
+      REEL: Number, STORY: Number, COLLAB: Number,
+      POST: Number, STORY_WITH_LINK: Number, CAROUSEL: Number, // older formats, no longer offered (kept for old data)
     },
     acceptsBarter: { type: Boolean, default: false },
     availability: { open: { type: Boolean, default: true } },
@@ -59,6 +61,7 @@ const creatorProfileSchema = new Schema(
     partnerSince: Date,
     introReelDealId: { type: Schema.Types.ObjectId, ref: 'Deal' },
     creatorScore: { type: Number, default: 60 },
+    // Average of the brands' ratings after completed deals (models/trust.ts → Rating), and how many there are.
     ratingAvg: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
     completedDeals: { type: Number, default: 0 },

@@ -12,9 +12,10 @@ import {
 } from '@bluenova/shared';
 import { authenticate, authorize } from '../../middleware/auth';
 import { rateLimits } from '../../middleware/security';
+import { idempotent } from '../../middleware/idempotency';
 import { validate, zodFields } from '../../middleware/validate';
 import { AppError, invalidState, notFound } from '../../lib/errors';
-import { h, input, ok, withTransaction } from '../../lib/http';
+import { cursorPage, h, input, ok, withTransaction } from '../../lib/http';
 import { notify, notifyAdmins } from '../../lib/notify';
 import { applyTransition } from '../../lib/transition';
 import { BrandProfileModel, type BrandProfileDoc } from '../../models/brandProfile';
@@ -67,7 +68,7 @@ brandsRouter.put('/brands/me', validate({ body: brandOnboardingSchema }), h(asyn
   const d = input<BrandOnboarding>(req);
   Object.assign(b, {
     companyName: d.companyName, contactName: d.contactName, designation: d.designation, phone: d.phone,
-    gstin: d.gstin, industry: d.industry, city: d.city, website: d.website, billingAddress: d.billingAddress,
+    gstin: d.gstin, industry: d.industry, city: d.city, areas: d.areas, website: d.website, billingAddress: d.billingAddress,
   });
   const firstTime = b.status === 'INCOMPLETE';
   if (firstTime) b.status = 'ACTIVE';
@@ -78,10 +79,30 @@ brandsRouter.put('/brands/me', validate({ body: brandOnboardingSchema }), h(asyn
 
 /* ---------- campaigns ---------- */
 
-brandsRouter.get('/campaigns', h(async (req, res) => {
+/** Newest first. ?limit= (default 100) and ?cursor= (the meta.nextCursor of the previous page) for "Load more". */
+brandsRouter.get('/campaigns', validate({ query: z.object({ cursor: objectId.optional(), limit: z.coerce.number().int().min(1).max(100).default(100) }) }), h(async (req, res) => {
   const b = await activeBrand(req);
-  const list = await CampaignModel.find({ brandId: b._id }).sort({ _id: -1 }).limit(100).lean();
-  ok(res, list.map(campaignBrandView));
+  const { cursor, limit } = input<{ cursor?: string; limit: number }>(req, 'query');
+  const items = await CampaignModel.find({ brandId: b._id, ...(cursor ? { _id: { $lt: cursor } } : {}) }).sort({ _id: -1 }).limit(limit + 1).lean();
+  const { page, nextCursor } = cursorPage(items, limit);
+  ok(res, page.map(campaignBrandView), 200, { nextCursor });
+}));
+
+/**
+ * POST /campaigns/:id/duplicate: a new DRAFT copied from one of the brand's own campaigns (any status).
+ * Dates are left empty (the old ones are usually in the past), so the wizard opens at the timeline step.
+ */
+brandsRouter.post('/campaigns/:id/duplicate', idParams, h(async (req, res) => {
+  const { brand, campaign: c } = await ownCampaign(req);
+  const settings = await getSettings();
+  const title = `${c.title ?? 'Campaign'} (copy)`.slice(0, 100);
+  const copy = await CampaignModel.create({
+    brandId: brand._id, title, goal: c.goal, description: c.description,
+    filters: c.filters, deliverables: c.deliverables, creatorsNeeded: c.creatorsNeeded, collabType: c.collabType, product: c.product,
+    guidelines: c.guidelines, budget: c.budget, usageRights: c.usageRights, maxRevisions: c.maxRevisions ?? settings.defaultMaxRevisions,
+    wizardStep: 4, statusHistory: [{ to: 'DRAFT', by: req.auth!.id, at: new Date(), reason: `copied_from_${c._id}` }],
+  });
+  ok(res, campaignBrandView(copy.toObject()), 201);
 }));
 
 brandsRouter.post('/campaigns', validate({ body: campaignStep1Schema }), h(async (req, res) => {
@@ -90,6 +111,7 @@ brandsRouter.post('/campaigns', validate({ body: campaignStep1Schema }), h(async
   const settings = await getSettings();
   const c = await CampaignModel.create({
     brandId: b._id, ...d, wizardStep: 2, maxRevisions: settings.defaultMaxRevisions,
+    filters: { cities: b.areas ?? [] }, // start with the areas from the brand's profile (editable in step 2)
     statusHistory: [{ to: 'DRAFT', by: req.auth!.id, at: new Date() }],
   });
   ok(res, campaignBrandView(c.toObject()), 201);
@@ -101,6 +123,7 @@ brandsRouter.get('/campaigns/:id', idParams, h(async (req, res) => {
 }));
 
 function applyStep(c: CampaignDoc, step: number, data: Record<string, unknown>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each case reads different, already validated fields
   const d = data as never as Record<string, any>; // validated by the step schema
   switch (step) {
     case 1:
@@ -237,7 +260,7 @@ brandsRouter.get('/campaigns/:id/shortlist', idParams, h(async (req, res) => {
   ok(res, items.map((i) => shortlistBrandView(i, map.get(String(i.creatorId)) ?? null)));
 }));
 
-brandsRouter.post('/campaigns/:id/shortlist/select',
+brandsRouter.post('/campaigns/:id/shortlist/select', idempotent,
   validate({ params: z.object({ id: objectId }), body: shortlistSelectSchema }),
   h(async (req, res) => {
     const { campaign } = await ownCampaign(req);

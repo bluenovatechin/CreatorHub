@@ -10,21 +10,52 @@ import { Navigate, createBrowserRouter, useLocation } from 'react-router-dom';
 import { Loading } from '@bluenova/ui';
 import { GuestOnly, RequireRole, homePathFor, useAuth } from './lib/auth';
 import { AppLayout, PublicLayout } from './components/layout';
-import { ForBrandsPage, ForCreatorsPage, HomePage, NotFoundPage } from './pages/public/PublicPages';
-import { PrivacyPage, TermsPage } from './pages/public/LegalPages';
+import { HomePage } from './pages/home';
+import { ForCreatorsPage } from './pages/for-creators';
+import { ForBrandsPage } from './pages/for-brands';
+import { NotFoundPage } from './pages/not-found';
+import { PrivacyPage, TermsPage } from './pages/legal';
+import { HowItWorksPage } from './pages/how-it-works';
+import { PricingPage } from './pages/pricing';
+import { FaqPage } from './pages/faq';
+import { ContactPage } from './pages/contact';
+
 import {
-  ForgotPasswordPage, GoogleCallbackPage, LoginPage, ResetPasswordPage, RoleSelectPage, SignupPage,
-} from './pages/auth/AuthPages';
-import { CreatorOnboarding } from './pages/creator/Onboarding';
+  LoginPage,
+  SignupPage,
+  GoogleCallbackPage,
+  ForgotPasswordPage,
+  ResetPasswordPage,
+  RoleSelectPage,
+} from './pages/auth';
+
 import {
-  CreatorDashboard, CreatorDealsPage, CreatorStatusPage, IntroReelPage, OfferDetailPage, OffersPage, OpportunitiesPage,
-} from './pages/creator/CreatorPages';
+  CreatorDashboard,
+  CreatorOnboarding,
+  CreatorStatusPage,
+  IntroReelPage,
+  OpportunitiesPage,
+  OffersPage,
+  OfferDetailPage,
+  CreatorDealsPage,
+  CreatorDealDetailPage,
+  CreatorProfilePage,
+} from './pages/creator';
+
 import {
-  BrandDashboard, BrandDealsPage, BrandOnboardingPage, CampaignDetailPage, CampaignsPage,
-} from './pages/brand/BrandPages';
-import { CampaignWizard } from './pages/brand/CampaignWizard';
-import { PaymentPage } from './pages/brand/PaymentPage';
-import { NotificationsPage, SettingsPage } from './pages/shared/SharedPages';
+  BrandDashboard,
+  BrandOnboardingPage,
+  CampaignsPage,
+  CampaignWizard,
+  CampaignDetailPage,
+  PaymentPage,
+  BrandDealsPage,
+  BrandDealDetailPage,
+} from './pages/brand';
+
+import { NotificationsPage } from './pages/notifications';
+import { MessagesPage } from './pages/messages';
+import { SettingsPage } from './pages/settings';
 
 function RequireSignedIn({ children }: { children: ReactNode }) {
   const { me, loading } = useAuth();
@@ -50,6 +81,10 @@ export const router = createBrowserRouter([
       { path: '/', element: <HomePage /> },
       { path: '/for-creators', element: <ForCreatorsPage /> },
       { path: '/for-brands', element: <ForBrandsPage /> },
+      { path: '/how-it-works', element: <HowItWorksPage /> },
+      { path: '/pricing', element: <PricingPage /> },
+      { path: '/faq', element: <FaqPage /> },
+      { path: '/contact', element: <ContactPage /> },
       { path: '/privacy', element: <PrivacyPage /> },
       { path: '/terms', element: <TermsPage /> },
       { path: '*', element: <NotFoundPage /> },
@@ -81,6 +116,9 @@ export const router = createBrowserRouter([
       { path: 'offers', element: <OffersPage /> },
       { path: 'offers/:id', element: <OfferDetailPage /> },
       { path: 'deals', element: <CreatorDealsPage /> },
+      { path: 'deals/:id', element: <CreatorDealDetailPage /> },
+      { path: 'profile', element: <CreatorProfilePage /> },
+      { path: 'messages', element: <MessagesPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: '*', element: <NotFoundPage /> },
@@ -98,6 +136,8 @@ export const router = createBrowserRouter([
       { path: 'campaigns/:id/payment', element: <PaymentPage /> },
       { path: 'campaigns/:id/edit/:step', element: <CampaignWizard /> },
       { path: 'deals', element: <BrandDealsPage /> },
+      { path: 'deals/:id', element: <BrandDealDetailPage /> },
+      { path: 'messages', element: <MessagesPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: '*', element: <NotFoundPage /> },

@@ -4,13 +4,16 @@
  */
 import type { ClientSession, Types } from 'mongoose';
 import type { AdminRole } from '@bluenova/shared';
+import { EmailJobModel } from '../models/emailJob';
 import { NotificationModel } from '../models/system';
+import { isEmailed } from '../providers/notificationEmails';
+import { kickEmailOutbox } from '../jobs/emailOutbox';
 import { UserModel } from '../models/user';
 import { logger } from './logger';
 
 /**
  * In-app notification. Text is rendered on the client from `notif.<type>` + params.
- * WhatsApp/email delivery is added later through provider adapters.
+ * Types listed in providers/notificationEmails.ts are also emailed (unless the person turned emails off).
  */
 export async function notify(
   userId: Types.ObjectId | string,
@@ -20,7 +23,12 @@ export async function notify(
   session?: ClientSession,
 ) {
   if (link && !link.startsWith('/')) throw new Error('Notification links must be internal paths');
-  await NotificationModel.create([{ userId, type, params, link }], { session });
+  const [n] = await NotificationModel.create([{ userId, type, params, link }], { session });
+  // Important events are also emailed, through the outbox (saved in the same transaction, sent in the background).
+  if (isEmailed(type)) {
+    await EmailJobModel.create([{ notificationId: n._id, userId, type, params, link, nextAttemptAt: new Date() }], { session });
+    kickEmailOutbox();
+  }
   logger.debug({ type, userId: String(userId) }, 'notification created');
 }
 

@@ -41,10 +41,10 @@ void i18n.use(initReactI18next).init({
 document.documentElement.lang = i18n.language;
 
 /** zod's built-in messages become i18n keys; schema-specific messages (errors.*) are kept. */
-z.setErrorMap((issue, ctx) => {
+z.setErrorMap((issue) => {
   if (issue.code === 'invalid_type' && issue.received === 'undefined') return { message: 'errors.zod.invalid_type' };
   if (issue.code === 'invalid_type' && issue.received === 'nan') return { message: 'errors.zod.invalid_type' };
-  return { message: `errors.zod.${issue.code}` || ctx.defaultError };
+  return { message: `errors.zod.${issue.code}` };
 });
 
 export default i18n;

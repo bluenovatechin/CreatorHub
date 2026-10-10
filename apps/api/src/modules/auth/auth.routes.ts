@@ -1,12 +1,13 @@
 /**
  * AUTH ROUTES (/api/v1/auth/*): sign up, email code, Google, login, logout, passwords, role choice,
- * and the admin panel's two-step login. Each route here is thin: validate input → call auth.service.ts → reply.
+ * and the admin panel's two-step login (authenticator code, or a one-time recovery code for a lost phone).
+ * Each route here is thin: validate input → call auth.service.ts → reply.
  * Full step-by-step flows with diagrams: docs/FLOWS.md (section "Accounts & login").
  */
 import { Router, type Request } from 'express';
 import type { ClientSession } from 'mongoose';
 import {
-  POLICY_VERSION, adminLoginSchema, adminTotpSchema, changePasswordSchema, emailOnlySchema, loginSchema, passwordProblem,
+  POLICY_VERSION, adminLoginSchema, adminRecoverySchema, adminTotpSchema, changePasswordSchema, emailOnlySchema, loginSchema, passwordProblem,
   preferencesSchema, resetPasswordSchema, roleSelectSchema, signupSchema, tokenSchema,
   type SignupInput, type UiLanguage,
 } from '@bluenova/shared';
@@ -19,16 +20,17 @@ import { randomCode, randomToken } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
 import { h, input, ok, withTransaction } from '../../lib/http';
 import { signMfaToken, verifyToken } from '../../lib/tokens';
-import { invalidateUser } from '../../lib/userCache';
+import { getAuthUser, invalidateUser } from '../../lib/userCache';
+import { audit } from '../../lib/audit';
 import { EmailTokenModel } from '../../models/auth';
 import { BrandProfileModel } from '../../models/brandProfile';
 import { CreatorProfileModel } from '../../models/creatorProfile';
 import { UserModel, type UserDoc } from '../../models/user';
 import { emails, sendInBackground } from '../../providers/email';
 import {
-  checkCredentials, checkEmailOtp, clearLoginFailures, consumeEmailToken, createEmailOtp, createEmailToken, emailLink,
+  checkCredentials, checkEmailOtp, consumeEmailToken, createEmailOtp, createEmailToken, emailLink,
   endAllSessions, endSession, hashPassword, peekEmailToken, peekSignupTicket, type PendingSignup, refreshSession, setPassword, startSession,
-  verifyPassword, verifyTotp,
+  useRecoveryCode, verifyPassword, verifyTotp,
 } from './auth.service';
 import { verifyGoogleCredential } from '../../providers/google';
 
@@ -163,6 +165,7 @@ const googleSchema = z.object({
  * POST /auth/google  { credential, nonce }  (sent by the website's /auth/google/callback page)
  * Verifies the Google token, then: existing account (same Google id or same email) → logged in;
  * new person → account created (email already verified by Google, no role yet) → logged in.
+ * Linking to an account whose email was never verified removes its password first (see the comment inside).
  */
 authRouter.post('/google', rateLimits.login, validate({ body: googleSchema }), h(async (req, res) => {
   const { credential, nonce } = input<{ credential: string; nonce: string }>(req);
@@ -175,9 +178,22 @@ authRouter.post('/google', rateLimits.login, validate({ body: googleSchema }), h
     if (user.role === 'admin') throw new AppError('FORBIDDEN', 'errors.googleTeamAccount');
     if (user.status !== 'active') throw new AppError('FORBIDDEN', 'errors.accountInactive');
     // Google has proven this person owns the email, so linking and verifying is safe.
+    // But if the email was NEVER verified, someone else may have signed up with it (and their own password)
+    // before the real owner arrived. That unproven password must stop working, or it would open this account.
+    const neverVerified = !user.emailVerifiedAt;
     user.googleId ??= g.sub;
     user.emailVerifiedAt ??= new Date();
+    if (neverVerified) {
+      user.passwordHash = undefined; // the owner can set their own later with "Forgot password"
+      user.name = g.name.slice(0, 60);
+    }
     await user.save();
+    if (neverVerified) {
+      // Unused signup codes/tickets (which may carry that stranger's password) and any old sessions end here.
+      await EmailTokenModel.updateMany({ userId: user._id, usedAt: null }, { $set: { usedAt: new Date() } });
+      await endAllSessions(String(user._id), 'password_changed');
+      user = (await UserModel.findById(user._id))!; // fresh tokenVersion for the new session
+    }
     invalidateUser(String(user._id));
   } else {
     const now = new Date();
@@ -299,15 +315,27 @@ authRouter.post('/role', authenticate('app'), rateLimits.authed, validate({ body
 
 /* ---------- admins: email + password, then authenticator code ---------- */
 
+/**
+ * POST /auth/admin/login { email, password } → { mfaToken } (step 2: authenticator code).
+ * If ADMIN_TOTP_REQUIRED=false (temporary, for testing) the password alone logs in: { accessToken, user }.
+ * That is audited every time, and the admin panel shows a red "two-step login is OFF" bar.
+ */
 authRouter.post('/admin/login', rateLimits.login, validate({ body: adminLoginSchema }), h(async (req, res) => {
   const { email: addr, password } = input<{ email: string; password: string }>(req);
   const user = await checkCredentials(addr, password);
-  if (user.role !== 'admin' || user.status !== 'active' || !user.totpEnabled) throw new AppError('UNAUTHENTICATED', 'errors.badCredentials');
+  if (user.role !== 'admin' || user.status !== 'active') throw new AppError('UNAUTHENTICATED', 'errors.badCredentials');
+  if (!env.ADMIN_TOTP_REQUIRED) {
+    const accessToken = await startSession(req, res, user, 'admin');
+    req.auth = (await getAuthUser(String(user._id)))!;
+    await audit(req, 'admin.login_without_totp', 'User', user._id);
+    return ok(res, { accessToken, user: await meView(String(user._id)) });
+  }
+  if (!user.totpEnabled) throw new AppError('UNAUTHENTICATED', 'errors.badCredentials');
   ok(res, { mfaToken: signMfaToken(String(user._id), user.tokenVersion) });
 }));
 
-authRouter.post('/admin/totp/verify', rateLimits.login, validate({ body: adminTotpSchema }), h(async (req, res) => {
-  const { mfaToken, code } = input<{ mfaToken: string; code: string }>(req);
+/** Step 2 of admin login: the 5-minute token from step 1 says whose password was right. */
+async function mfaUser(mfaToken: string): Promise<UserDoc> {
   let claims;
   try {
     claims = verifyToken(mfaToken, 'bluenova-admin-mfa', 'mfa');
@@ -318,9 +346,31 @@ authRouter.post('/admin/totp/verify', rateLimits.login, validate({ body: adminTo
   if (!user || user.role !== 'admin' || user.status !== 'active' || user.tokenVersion !== claims.tv) {
     throw new AppError('UNAUTHENTICATED');
   }
+  return user;
+}
+
+authRouter.post('/admin/totp/verify', rateLimits.login, validate({ body: adminTotpSchema }), h(async (req, res) => {
+  const { mfaToken, code } = input<{ mfaToken: string; code: string }>(req);
+  const user = await mfaUser(mfaToken);
   await verifyTotp(String(user._id), code);
   const accessToken = await startSession(req, res, user, 'admin');
   ok(res, { accessToken, user: await meView(String(user._id)) });
+}));
+
+/**
+ * POST /auth/admin/recovery  { mfaToken, code }: step 2 for an admin who lost their authenticator phone.
+ * Each recovery code works once. The use is audited and emailed to the admin, so a stolen code gets noticed.
+ * Reply: { accessToken, user, recoveryCodesLeft }. The admin panel then asks them to set up a new authenticator.
+ */
+authRouter.post('/admin/recovery', rateLimits.login, validate({ body: adminRecoverySchema }), h(async (req, res) => {
+  const { mfaToken, code } = input<{ mfaToken: string; code: string }>(req);
+  const user = await mfaUser(mfaToken);
+  const recoveryCodesLeft = await useRecoveryCode(String(user._id), code);
+  const accessToken = await startSession(req, res, user, 'admin');
+  req.auth = (await getAuthUser(String(user._id)))!; // so the audit entry names this admin as the actor
+  await audit(req, 'admin.recovery_code_used', 'User', user._id, { changes: { recoveryCodesLeft } });
+  sendInBackground(emails.recoveryCodeUsed(user.email, user.name, recoveryCodesLeft));
+  ok(res, { accessToken, user: await meView(String(user._id)), recoveryCodesLeft });
 }));
 
 authRouter.post('/admin/refresh', originCheck(true), rateLimits.refresh, h(async (req, res) => {
@@ -346,8 +396,11 @@ export const meRouter = Router();
 meRouter.get('/', h(async (req, res) => ok(res, await meView(req.auth!.id))));
 
 meRouter.patch('/preferences', validate({ body: preferencesSchema }), h(async (req, res) => {
-  const { preferredLanguage } = input<{ preferredLanguage: UiLanguage }>(req);
-  await UserModel.updateOne({ _id: req.auth!.id }, { $set: { preferredLanguage } });
+  const { preferredLanguage, emailNotifications } = input<{ preferredLanguage?: UiLanguage; emailNotifications?: boolean }>(req);
+  const set: Record<string, unknown> = {};
+  if (preferredLanguage !== undefined) set.preferredLanguage = preferredLanguage;
+  if (emailNotifications !== undefined) set.emailNotifications = emailNotifications;
+  await UserModel.updateOne({ _id: req.auth!.id }, { $set: set });
   ok(res, await meView(req.auth!.id));
 }));
 
@@ -361,7 +414,10 @@ export async function meView(userId: string) {
     name: user.name ?? null,
     email: user.email,
     preferredLanguage: user.preferredLanguage,
+    emailNotifications: user.emailNotifications !== false,
   };
+  // Team members only: lets the admin panel warn when two-step login is switched off.
+  if (user.role === 'admin') view.adminTotpRequired = env.ADMIN_TOTP_REQUIRED;
   if (user.role === 'creator') {
     const p = await CreatorProfileModel.findOne({ userId }, {
       status: 1, onboardingStep: 1, isPartner: 1, displayName: 1, introReelDealId: 1,

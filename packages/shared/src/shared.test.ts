@@ -186,3 +186,42 @@ describe('matchScore', () => {
     expect(r.total).toBe(100);
   });
 });
+
+describe('formats, cities and areas (2026-10-10)', () => {
+  it('only Reel, Story and Collab can be booked; older formats are no longer accepted', async () => {
+    const { DELIVERABLE_TYPES, STORED_DELIVERABLE_TYPES, campaignStep3Schema, rateCardSchema } = await import('./index');
+    expect([...DELIVERABLE_TYPES]).toEqual(['REEL', 'STORY', 'COLLAB']);
+    expect(STORED_DELIVERABLE_TYPES).toContain('POST'); // old saved data still loads
+    const base = { creatorsNeeded: 1, collabType: 'PAID' };
+    expect(campaignStep3Schema.safeParse({ ...base, deliverables: [{ type: 'COLLAB', quantity: 1 }] }).success).toBe(true);
+    for (const old of ['POST', 'CAROUSEL', 'STORY_WITH_LINK']) {
+      expect(campaignStep3Schema.safeParse({ ...base, deliverables: [{ type: old, quantity: 1 }] }).success).toBe(false);
+    }
+    expect(rateCardSchema.parse({ REEL: 5000, POST: 3000, COLLAB: 9000 })).toEqual({ REEL: 5000, COLLAB: 9000 });
+  });
+
+  it('lists every Gujarat district headquarters once, with Gujarati names', async () => {
+    const { CITIES, CITY_KEYS } = await import('./index');
+    const hq = ['ahmedabad', 'amreli', 'anand', 'modasa', 'palanpur', 'bharuch', 'bhavnagar', 'botad', 'chhota_udaipur', 'dahod', 'ahwa',
+      'khambhalia', 'gandhinagar', 'veraval', 'jamnagar', 'junagadh', 'bhuj', 'nadiad', 'lunawada', 'mehsana', 'morbi', 'rajpipla',
+      'navsari', 'godhra', 'patan', 'porbandar', 'rajkot', 'himmatnagar', 'surat', 'surendranagar', 'vyara', 'vadodara', 'valsad', 'tharad'];
+    for (const k of hq) expect(CITY_KEYS).toContain(k);
+    expect(new Set(CITY_KEYS).size).toBe(CITY_KEYS.length);
+    for (const c of CITIES) expect(c.gu.length).toBeGreaterThan(1);
+  });
+
+  it('a creator\'s areas count like their home city when matching', () => {
+    const creator = { categories: ['food'], city: 'surat', languages: ['gu'], followerBand: 'MICRO' as const, rateCardPaise: {}, creatorScore: 60 };
+    const campaign = { categories: ['food'], cities: ['rajkot'], languages: ['gu'], followerBands: [] };
+    expect(matchScore(creator, campaign).city).toBe(0);
+    expect(matchScore({ ...creator, areas: ['rajkot', 'gondal'] }, campaign).city).toBe(20);
+  });
+
+  it('accepts several areas for creators and brands', () => {
+    const areas = creatorStep1Schema.shape.areas;
+    expect(areas.parse(['surat', 'vapi'])).toEqual(['surat', 'vapi']);
+    expect(areas.parse(undefined)).toEqual([]);
+    expect(areas.safeParse(['surat', 'surat']).success).toBe(false);
+    expect(areas.safeParse(['atlantis']).success).toBe(false);
+  });
+});

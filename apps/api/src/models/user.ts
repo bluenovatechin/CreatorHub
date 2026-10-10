@@ -23,6 +23,7 @@ const userSchema = new Schema(
     status: { type: String, enum: ['active', 'suspended', 'deletion_pending', 'deleted'], default: 'active' },
     tokenVersion: { type: Number, default: 0 },
     preferredLanguage: { type: String, enum: UI_LANGUAGES, default: 'gu' },
+    emailNotifications: { type: Boolean, default: true }, // also email important notifications (Settings)
     consents: [{
       _id: false,
       type: { type: String, enum: ['privacy', 'terms', 'creator_agreement', 'brand_agreement'] },
@@ -33,6 +34,10 @@ const userSchema = new Schema(
     totpSecret: { type: encryptedValue, select: false },
     totpEnabled: { type: Boolean, default: false },
     totpLastStep: { type: Number, select: false },
+    // Admins: a new authenticator key waiting for its first correct code (Settings → Security → new phone).
+    pendingTotpSecret: { type: encryptedValue, select: false },
+    // Admins: one-time recovery codes for a lost authenticator phone. Only SHA-256 hashes are stored.
+    recoveryCodes: { type: [{ _id: false, hash: String, usedAt: Date }], select: false, default: undefined },
     referredByCode: String,
     lastLoginAt: Date,
   },

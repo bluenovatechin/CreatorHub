@@ -9,6 +9,9 @@ export { formatINR };
 
 export const categoryLabel = (key: string, lang: string) => catalogLabel(CATEGORIES, key, lang === 'gu' ? 'gu' : 'en');
 export const cityLabel = (key: string, lang: string) => catalogLabel(CITIES, key, lang === 'gu' ? 'gu' : 'en');
+/** Cities for the search pickers: shown in the current language, also found by typing the other language's name. */
+export const cityOptions = (lang: string) =>
+  CITIES.map((c) => (lang === 'gu' ? { value: c.key, label: c.gu, alt: c.en } : { value: c.key, label: c.en, alt: c.gu }));
 
 export function formatDate(value: string | Date | null | undefined, lang: string): string {
   if (!value) return '—';

@@ -18,11 +18,15 @@ const brandProfileSchema = new Schema(
     gstin: String,
     industry: { type: String, enum: CATEGORY_KEYS },
     city: { type: String, enum: CITY_KEYS },
+    areas: [{ type: String, enum: CITY_KEYS }], // cities where the brand wants promotions (default for new campaigns)
     website: String,
     billingAddress: { line1: String, line2: String, city: String, stateCode: String, pincode: String },
     status: { type: String, enum: BRAND_STATUSES, default: 'INCOMPLETE', index: true },
     favouriteCreatorIds: [{ type: Schema.Types.ObjectId, ref: 'CreatorProfile' }],
     internalNotes: { type: String, select: false },
+    // Average of the creators' ratings after completed deals (team-only for now), and how many there are.
+    ratingAvg: { type: Number, default: 0 },
+    ratingCount: { type: Number, default: 0 },
   },
   { timestamps: true },
 );

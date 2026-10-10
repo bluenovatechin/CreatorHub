@@ -19,6 +19,7 @@ export function safeRedirect(next: string | null | undefined, fallback: string):
   if (!next || typeof next !== 'string') return fallback;
   if (!next.startsWith('/')) return fallback;
   if (next.startsWith('//') || next.startsWith('/\\')) return fallback;
+  // eslint-disable-next-line no-control-regex -- matching control characters is the point: they are rejected
   if (/[\u0000-\u001F\u007F]/.test(next)) return fallback;
   if (/^\/[^/]*:/.test(next)) return fallback;
   return next;

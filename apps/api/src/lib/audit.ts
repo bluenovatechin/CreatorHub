@@ -37,3 +37,14 @@ export async function audit(
     logger.error({ err, action }, 'audit log write failed');
   }
 }
+
+/**
+ * Records that an admin LOOKED at personal data, at most once per 10 minutes per admin + action + record.
+ * The admin panel refreshes open pages every 15 seconds; without this, one open page would fill the audit log.
+ */
+export async function auditView(req: Request, action: string, entityType: string, entityId: Types.ObjectId | string | undefined) {
+  const recent = await AuditLogModel.exists({
+    actorId: req.auth?.id, action, entityType, entityId: entityId ?? null, createdAt: { $gt: new Date(Date.now() - 10 * 60_000) },
+  });
+  if (!recent) await audit(req, action, entityType, entityId);
+}

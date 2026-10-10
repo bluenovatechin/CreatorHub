@@ -1,7 +1,7 @@
 /**
  * AUTH BUSINESS LOGIC used by auth.routes.ts (and admin → users):
  * passwords (argon2id hashing), login lockout, one-time email secrets (reset links, 6-digit codes, tickets),
- * admin authenticator codes (TOTP), and sessions (refresh-token cookies + short access tokens).
+ * admin authenticator codes (TOTP) and one-time recovery codes, and sessions (refresh-token cookies + short access tokens).
  * Security reasoning for each part: docs/SECURITY.md.
  */
 import crypto from 'node:crypto';
@@ -9,7 +9,7 @@ import argon2 from 'argon2';
 import type { CookieOptions, Request, Response } from 'express';
 import { authenticator } from 'otplib';
 import { env } from '../../config/env';
-import { decrypt, hmac, randomToken, sha256, timingSafeEqualHex, type EncryptedValue } from '../../lib/crypto';
+import { decrypt, hmac, randomCode, randomToken, sha256, timingSafeEqualHex, type EncryptedValue } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
 import { logger } from '../../lib/logger';
 import { signAccessToken } from '../../lib/tokens';
@@ -218,6 +218,38 @@ export async function verifyTotp(userId: string, code: string): Promise<void> {
     { $set: { totpLastStep: step } },
   );
   if (updated.modifiedCount !== 1) throw new AppError('INVALID_OTP', 'errors.invalidOtp');
+}
+
+/* ---------------- recovery codes (admins) ---------------- */
+
+const RECOVERY_CODE_COUNT = 10;
+const RECOVERY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 letters/digits, no look-alikes (0/O, 1/I)
+// 12 characters × 5 bits = 60 bits per code: far too many to guess, so a plain SHA-256 fingerprint is safe to store.
+const recoveryHash = (code: string) => sha256(`recovery:${code.toUpperCase().replace(/[\s-]/g, '')}`);
+
+/** Makes a fresh set of 10 codes (older codes stop working) and returns them ONCE for the admin to save. */
+export async function newRecoveryCodes(userId: string): Promise<string[]> {
+  const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () => {
+    const raw = randomCode(RECOVERY_ALPHABET, 12);
+    return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8)}`;
+  });
+  await UserModel.updateOne({ _id: userId }, { $set: { recoveryCodes: codes.map((c) => ({ hash: recoveryHash(c), usedAt: null })) } });
+  return codes;
+}
+
+export async function recoveryCodesLeft(userId: string): Promise<number> {
+  const u = await UserModel.findById(userId).select('+recoveryCodes').lean();
+  return (u?.recoveryCodes ?? []).filter((c) => !c.usedAt).length;
+}
+
+/** Uses up one recovery code (atomically, so the same code can't work twice). Returns how many are left. */
+export async function useRecoveryCode(userId: string, code: string): Promise<number> {
+  const used = await UserModel.updateOne(
+    { _id: userId, recoveryCodes: { $elemMatch: { hash: recoveryHash(code), usedAt: null } } },
+    { $set: { 'recoveryCodes.$.usedAt': new Date() } },
+  );
+  if (used.modifiedCount !== 1) throw new AppError('INVALID_OTP', 'errors.invalidRecoveryCode');
+  return recoveryCodesLeft(userId);
 }
 
 /* ---------------- sessions ---------------- */

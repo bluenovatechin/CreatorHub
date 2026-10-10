@@ -132,3 +132,45 @@ export async function submittedCampaign(token: string) {
   await request(app).post(`/api/v1/campaigns/${id}/submit`).set(bearer(token)).expect(200);
   return id;
 }
+
+/** An approved creator (profile id included), reviewed through the real admin routes. */
+export async function approvedCreator() {
+  const creator = await onboardedCreator();
+  const reviewer = await loginAdmin('reviewer');
+  const me = (await request(app).get('/api/v1/me').set(bearer(creator.token))).body.data;
+  const profileId = me.creator.id as string;
+  await request(app).post(`/api/v1/admin/creators/${profileId}/claim`).set(bearer(reviewer.token)).expect(200);
+  await request(app).post(`/api/v1/admin/creators/${profileId}/decision`).set(bearer(reviewer.token))
+    .send({ decision: 'APPROVED', scores: { quality: 4, consistency: 4, audienceFit: 4, engagement: 4 } }).expect(200);
+  return { ...creator, profileId, reviewer };
+}
+
+/**
+ * Walks the managed flow (payments OFF, the default) up to the chosen point:
+ *   'offer'    the brand selected the creator; an offer is waiting for the creator
+ *   'accepted' the creator accepted; the deal is AWAITING_PAYMENT
+ *   'started'  the team pressed "Start campaign"; the deal is IN_PRODUCTION
+ */
+export async function campaignWithDeal(stopAt: 'offer' | 'accepted' | 'started' = 'started') {
+  const creator = await approvedCreator();
+  const brand = await activeBrand();
+  const campaignId = await submittedCampaign(brand.token);
+  const cm = await loginAdmin('campaign_manager');
+  await request(app).post(`/api/v1/admin/campaigns/${campaignId}/claim`).set(bearer(cm.token)).expect(200);
+  await request(app).post(`/api/v1/admin/campaigns/${campaignId}/shortlist`).set(bearer(cm.token))
+    .send({ items: [{ creatorId: creator.profileId, creatorPayout: 5000 }] }).expect(201);
+  await request(app).post(`/api/v1/admin/campaigns/${campaignId}/shortlist/send`).set(bearer(cm.token)).expect(200);
+  const sl = await request(app).get(`/api/v1/campaigns/${campaignId}/shortlist`).set(bearer(brand.token)).expect(200);
+  await request(app).post(`/api/v1/campaigns/${campaignId}/shortlist/select`).set(bearer(brand.token)).send({ itemIds: [sl.body.data[0].id] }).expect(200);
+  const offers = await request(app).get('/api/v1/offers').set(bearer(creator.token)).expect(200);
+  const offerId = offers.body.data.find((o: { campaign?: { id?: string } }) => o.campaign?.id === campaignId)?.id ?? offers.body.data[0].id;
+  const result = { creator, brand, cm, campaignId, offerId: offerId as string, dealId: '' };
+  if (stopAt === 'offer') return result;
+  await request(app).post(`/api/v1/offers/${offerId}/accept`).set(bearer(creator.token)).expect(200);
+  const deals = await request(app).get('/api/v1/deals').set(bearer(creator.token)).expect(200);
+  result.dealId = deals.body.data.find((d: { type: string; campaignId?: string }) => d.type === 'BRAND' && d.campaignId === campaignId)?.id
+    ?? deals.body.data.find((d: { type: string }) => d.type === 'BRAND').id;
+  if (stopAt === 'accepted') return result;
+  await request(app).post(`/api/v1/admin/campaigns/${campaignId}/start`).set(bearer(cm.token)).expect(200);
+  return result;
+}

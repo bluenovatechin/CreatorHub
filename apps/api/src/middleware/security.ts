@@ -3,7 +3,7 @@
  *   requestId     gives each request an id (shown in errors, useful for support)
  *   noStore       tells browsers/proxies never to cache API answers
  *   originCheck   blocks requests from websites that aren't ours (CSRF protection)
- *   rateLimits    how many requests one visitor may make (e.g. 10 signups/hour, 30 logins/15 min)
+ *   rateLimits    how many requests one visitor may make (e.g. 10 signups/hour, 30 logins/15 min, 40 messages/10 min)
  */
 import crypto from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
@@ -61,4 +61,10 @@ export const rateLimits = {
   otpVerify: limiter(15 * 60_000, 30, 'otp-verify'),
   refresh: limiter(60_000, 30, 'refresh'),
   authed: limiter(60_000, 120, 'authed'),
+  // Messages to/from the team: plenty for a real conversation, too few to flood the inbox.
+  messages: limiter(10 * 60_000, 40, 'messages'),
+  // Reports and disputes: rare by nature.
+  reports: limiter(60 * 60_000, 10, 'reports'),
+  // Public contact form (no login): a few per hour per network.
+  contact: limiter(60 * 60_000, 5, 'contact'),
 };

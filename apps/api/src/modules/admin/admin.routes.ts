@@ -1,7 +1,8 @@
 /**
  * ADMIN ROUTES (/api/v1/admin/*). Everything here needs an admin login (password + authenticator).
  * Each route also says which team role may use it (requireAdmin). Covers: dashboard counts, creator review,
- * brands, campaigns (claim, matches, shortlist), audit log. Also mounts admin payments and admin → users.
+ * brands, campaigns (claim, matches, shortlist), audit log. Also mounts admin payments, admin → users and
+ * admin → my security (recovery codes, new authenticator phone).
  */
 import { Router } from 'express';
 import { z } from 'zod';
@@ -24,11 +25,22 @@ import { CreatorProfileModel } from '../../models/creatorProfile';
 import { DealModel, OfferModel } from '../../models/deal';
 import { AuditLogModel, getSettings } from '../../models/system';
 import { PaymentModel } from '../../models/payment';
+import { ApplicationModel } from '../../models/application';
+import { ConversationModel } from '../../models/conversation';
+import { DisputeModel, ReportModel } from '../../models/trust';
+import { EnquiryModel } from '../../models/enquiry';
 import { UserModel } from '../../models/user';
 import { env } from '../../config/env';
 import { email } from '../../providers/email';
 import { notificationsRouter } from '../deals/deals.routes';
 import { adminPaymentsRouter } from '../payments/payments.routes';
+import { adminApplicationsRouter } from './applications.routes';
+import { adminDealsRouter } from './deals.routes';
+import { adminMessagesRouter } from './messages.routes';
+import { adminTrustRouter } from './trust.routes';
+import { adminEmailsRouter } from './emails.routes';
+import { adminEnquiriesRouter } from './enquiries.routes';
+import { adminSecurityRouter } from './security.routes';
 import { adminUsersRouter } from './users.routes';
 import { meRouter } from '../auth/auth.routes';
 import {
@@ -41,6 +53,13 @@ adminRouter.use('/me', meRouter);
 adminRouter.use('/notifications', notificationsRouter);
 adminRouter.use(adminPaymentsRouter);
 adminRouter.use(adminUsersRouter); // /admin/users (super_admin only)
+adminRouter.use(adminSecurityRouter); // /admin/security (every admin, own account)
+adminRouter.use(adminDealsRouter); // /admin/deals (work review queue)
+adminRouter.use(adminApplicationsRouter); // /admin/campaigns/:id/applications, /admin/applications/:id/decision
+adminRouter.use(adminMessagesRouter); // /admin/conversations (team inbox)
+adminRouter.use(adminTrustRouter); // /admin/disputes, /admin/reports, /admin/ratings
+adminRouter.use(adminEmailsRouter); // /admin/emails (super_admin: email delivery log)
+adminRouter.use(adminEnquiriesRouter); // /admin/enquiries (Contact page messages)
 
 const idParams = validate({ params: z.object({ id: objectId }) });
 
@@ -57,8 +76,24 @@ adminRouter.get('/dashboard', h(async (_req, res) => {
     CreatorProfileModel.countDocuments({ status: 'APPROVED' }),
     PaymentModel.countDocuments({ status: 'SUBMITTED' }),
   ]);
+  // Queues added in phases 7–10: work waiting for review, new applications, unread messages, open disputes and reports.
+  const [workToReview, applicationsWaiting, messagesWaiting, openDisputes, openReports, openEnquiries, overdueWork] = await Promise.all([
+    DealModel.countDocuments({ status: { $in: ['DRAFT_SUBMITTED', 'LIVE_SUBMITTED'] } }),
+    ApplicationModel.countDocuments({ status: 'SUBMITTED' }),
+    ConversationModel.countDocuments({ unreadByTeam: { $gt: 0 } }),
+    DisputeModel.countDocuments({ status: 'OPEN' }),
+    ReportModel.countDocuments({ status: 'OPEN' }),
+    EnquiryModel.countDocuments({ status: 'OPEN' }),
+    DealModel.countDocuments({ $or: [
+      { status: { $in: ['IN_PRODUCTION', 'REVISION_REQUESTED'] }, 'deadlines.draftDue': { $lt: new Date() } },
+      { status: 'APPROVED', 'deadlines.liveDue': { $lt: new Date() } },
+    ] }),
+  ]);
   const { paymentsEnabled } = await getSettings();
-  ok(res, { pendingCreators, underReview, campaignsToReview, campaignsInReview, offersSent, awaitingPayment, approvedCreators, paymentsToVerify, paymentsEnabled });
+  ok(res, {
+    pendingCreators, underReview, campaignsToReview, campaignsInReview, offersSent, awaitingPayment, approvedCreators, paymentsToVerify,
+    workToReview, applicationsWaiting, messagesWaiting, openDisputes, openReports, openEnquiries, overdueWork, paymentsEnabled,
+  });
 }));
 
 /* ---------- creators ---------- */
@@ -209,7 +244,7 @@ adminRouter.get('/campaigns/:id/matches', cm, idParams, h(async (req, res) => {
   const ranked = creators.map((cr) => ({
     creator: creatorAdminView(cr),
     score: matchScore({
-      categories: cr.categories ?? [], city: cr.city ?? '', languages: cr.languages ?? [],
+      categories: cr.categories ?? [], city: cr.city ?? '', areas: cr.areas ?? [], languages: cr.languages ?? [],
       followerBand: (cr.instagram?.followerBand ?? 'NANO') as never,
       rateCardPaise: (cr.rateCardPaise ?? {}) as never, creatorScore: cr.creatorScore,
     }, {

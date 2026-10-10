@@ -3,7 +3,8 @@
  * may make each one. The API refuses any other change (lib/transition.ts). Diagrams: docs/DATA_MODELS.md.
  */
 import type {
-  AdminRole, CampaignStatus, CreatorStatus, DealStatus, OfferStatus,
+  AdminRole, ApplicationStatus, CampaignStatus, ConversationStatus, CreatorStatus, DealStatus, DisputeStatus, OfferStatus,
+  ReportStatus,
 } from './enums';
 
 /** Who performs a transition. Admin sub-roles act as themselves; super_admin may act as any admin. */
@@ -94,6 +95,49 @@ export const dealMachine: Machine<DealStatus> = {
       to: 'DISPUTED',
       actors: ['brand', 'creator', 'campaign_manager'],
     },
+    // Resolving a dispute (team only): continue from where the deal was, or cancel it.
+    // The dispute record remembers the earlier status; disputes.service.ts only ever returns the deal to THAT status.
+    ...(['IN_PRODUCTION', 'DRAFT_SUBMITTED', 'BRAND_REVIEW', 'REVISION_REQUESTED', 'APPROVED', 'LIVE_SUBMITTED'] as const)
+      .map((to) => ({ from: ['DISPUTED'] as const, to, actors: ['campaign_manager'] as const })),
+    { from: ['DISPUTED'], to: 'CANCELLED', actors: ['campaign_manager'] },
+    // The team may also cancel a running deal directly (reason required, audited, both sides told).
+    {
+      from: ['IN_PRODUCTION', 'DRAFT_SUBMITTED', 'BRAND_REVIEW', 'REVISION_REQUESTED', 'APPROVED', 'LIVE_SUBMITTED'],
+      to: 'CANCELLED',
+      actors: ['campaign_manager'],
+    },
+  ],
+};
+
+export const disputeMachine: Machine<DisputeStatus> = {
+  name: 'dispute',
+  transitions: [{ from: ['OPEN'], to: 'RESOLVED', actors: ['campaign_manager'] }],
+};
+
+export const reportMachine: Machine<ReportStatus> = {
+  name: 'report',
+  transitions: [
+    { from: ['OPEN'], to: 'ACTIONED', actors: ['reviewer', 'campaign_manager'] },
+    { from: ['OPEN'], to: 'DISMISSED', actors: ['reviewer', 'campaign_manager'] },
+  ],
+};
+
+/** Applications: the team shortlists (the brand then sees the creator on the shortlist) or declines; the creator may withdraw. */
+export const applicationMachine: Machine<ApplicationStatus> = {
+  name: 'application',
+  transitions: [
+    { from: ['SUBMITTED'], to: 'SHORTLISTED', actors: ['campaign_manager'] },
+    { from: ['SUBMITTED'], to: 'DECLINED', actors: ['campaign_manager'] },
+    { from: ['SUBMITTED'], to: 'WITHDRAWN', actors: ['creator'] },
+  ],
+};
+
+/** Conversations with the team: the team closes them; a new message from either side re-opens them. */
+export const conversationMachine: Machine<ConversationStatus> = {
+  name: 'conversation',
+  transitions: [
+    { from: ['OPEN'], to: 'CLOSED', actors: ['reviewer', 'campaign_manager', 'finance'] },
+    { from: ['CLOSED'], to: 'OPEN', actors: ['creator', 'brand', 'reviewer', 'campaign_manager', 'finance'] },
   ],
 };
 

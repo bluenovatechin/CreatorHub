@@ -11,6 +11,9 @@
     "dev:web": "npm run dev -w @bluenova/web",
     "dev:admin": "npm run dev -w @bluenova/admin",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format:check": "prettier --check .",
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "seed": "npm run seed -w @bluenova/api",
@@ -19,8 +22,14 @@
     "email:test": "npm run -s email:test -w @bluenova/api --"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "concurrently": "^9.1.2",
-    "typescript": "^5.7.2"
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.9",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.71.1"
   },
   "engines": {
     "node": ">=20"

@@ -6,6 +6,8 @@ import type { Campaign, ShortlistItem } from '../models/campaign';
 import type { CreatorProfile } from '../models/creatorProfile';
 import type { BrandProfile } from '../models/brandProfile';
 import type { Deal, Offer } from '../models/deal';
+import type { Application } from '../models/application';
+import { maskContactDetails } from '@bluenova/shared';
 
 /**
  * Serializers accept both hydrated documents (`doc.toObject()`) and `.lean()` results.
@@ -25,6 +27,7 @@ function creatorCore(p: WithId<CreatorProfile>) {
     id: id(p._id),
     displayName: p.displayName ?? null,
     city: p.city ?? null,
+    areas: p.areas ?? [],
     languages: p.languages ?? [],
     categories: p.categories ?? [],
     igHandle: p.instagram?.handle ?? null,
@@ -106,6 +109,7 @@ export function brandSelfView(b: WithId<BrandProfile>, accountEmail?: string | n
     gstin: b.gstin ?? null,
     industry: b.industry ?? null,
     city: b.city ?? null,
+    areas: b.areas ?? [],
     website: b.website ?? null,
     billingAddress: b.billingAddress ?? null,
   };
@@ -174,13 +178,38 @@ export function campaignAdminView(c: WithId<Campaign>) {
 }
 
 /** Opportunity feed for creators: no brand contacts, no brand budget. */
-export function opportunityView(c: WithId<Campaign>, companyName: string | null, interested: boolean) {
+export function opportunityView(
+  c: WithId<Campaign>, companyName: string | null, interested: boolean,
+  application: (WithId<Application>) | null = null,
+) {
   const core = campaignCore(c);
   return {
     id: core.id, title: core.title, goal: core.goal, description: core.description, companyName,
     deliverables: core.deliverables, categories: core.filters.categories, cities: core.filters.cities,
     collabType: core.collabType, product: core.product, startDate: core.startDate, endDate: core.endDate,
     interested,
+    application: application ? { id: id(application._id), status: application.status } : null,
+  };
+}
+
+/* ---------- applications ---------- */
+
+/** The creator's own application. The team's internal review details are not included. */
+export function applicationCreatorView(a: WithId<Application>, campaignTitle: string | null) {
+  return {
+    id: id(a._id), campaignId: id(a.campaignId), campaignTitle, status: a.status, pitch: a.pitch,
+    proposedRatePaise: a.proposedRatePaise ?? null, decisionNote: a.status === 'DECLINED' ? a.decisionNote ?? null : null,
+    createdAt: a.createdAt,
+  };
+}
+
+/** Team view: everything, plus the creator card used for shortlisting. */
+export function applicationAdminView(a: WithId<Application>, creator: WithId<CreatorProfile> | null) {
+  return {
+    id: id(a._id), campaignId: id(a.campaignId), creatorId: id(a.creatorId), status: a.status, pitch: a.pitch,
+    proposedRatePaise: a.proposedRatePaise ?? null, decisionNote: a.decisionNote ?? null,
+    reviewedAt: a.reviewedAt ?? null, createdAt: a.createdAt,
+    creator: creator ? creatorAdminView(creator) : null,
   };
 }
 
@@ -238,6 +267,41 @@ export function offerAdminView(o: WithId<Offer>) {
 
 /* ---------- deals ---------- */
 
+type Submission = NonNullable<Deal['submissions']>[number];
+type Viewer = 'creator' | 'brand' | 'admin';
+/** Notes between brand and creator pass through Bluenova: phone numbers, emails and handles are hidden. */
+const masked = (t: string | null | undefined) => (t ? maskContactDetails(t).text : null);
+
+/**
+ * The creator's work (draft and live links) as each side may see it:
+ *   creator  everything; the brand's notes with contact details hidden
+ *   brand    only drafts the team forwarded, and live posts the team verified; only the brand's own reviews
+ *   admin    everything, unmasked
+ */
+function submissionsFor(d: WithId<Deal>, viewer: Viewer) {
+  const list = (d.submissions ?? []) as (Submission & { _id?: unknown })[];
+  return list
+    .filter((s) => viewer !== 'brand' || (s.kind === 'DRAFT' ? s.sharedWithBrand : s.reviews.some((r) => r.decision === 'VERIFY')))
+    .map((s) => ({
+      id: id(s._id), kind: s.kind, url: s.url, submittedAt: s.submittedAt,
+      note: viewer === 'brand' ? masked(s.note) : s.note ?? null,
+      ...(viewer === 'admin' ? { sharedWithBrand: !!s.sharedWithBrand } : {}),
+      reviews: s.reviews
+        .filter((r) => viewer !== 'brand' || r.by === 'brand')
+        .map((r) => ({ by: r.by, decision: r.decision, at: r.at, note: viewer === 'creator' && r.by === 'brand' ? masked(r.note) : r.note ?? null })),
+    }));
+}
+
+/** Recorded changes to agreed terms; money fields only for the side allowed to see them (margin never). */
+function amendmentsFor(d: WithId<Deal>, viewer: Viewer) {
+  const hidden = viewer === 'creator' ? ['brandPricePaise'] : viewer === 'brand' ? ['creatorPayoutPaise'] : [];
+  const list = (d.amendments ?? []) as { at?: Date | null; reason?: string | null; changes?: unknown }[];
+  return list.map((a) => {
+    const changes = Object.fromEntries(Object.entries((a.changes ?? {}) as Record<string, unknown>).filter(([k]) => !hidden.includes(k)));
+    return { at: a.at, reason: a.reason ?? null, changes };
+  }).filter((a: { changes: object }) => Object.keys(a.changes).length > 0);
+}
+
 function dealCore(d: WithId<Deal>) {
   return {
     id: id(d._id),
@@ -248,17 +312,19 @@ function dealCore(d: WithId<Deal>) {
     deadlines: d.deadlines ?? null,
     maxRevisions: d.maxRevisions,
     brandRevisionsUsed: d.brandRevisionsUsed,
+    revisionsLeft: Math.max(0, (d.maxRevisions ?? 0) - (d.brandRevisionsUsed ?? 0)),
+    completedAt: d.completedAt ?? null,
     statusHistory: history(d.statusHistory),
     createdAt: d.createdAt,
   };
 }
 
 export function dealCreatorView(d: WithId<Deal>, extra: { campaignTitle?: string | null; companyName?: string | null }) {
-  return { ...dealCore(d), creatorPayoutPaise: d.creatorPayoutPaise ?? null, ...extra };
+  return { ...dealCore(d), creatorPayoutPaise: d.creatorPayoutPaise ?? null, submissions: submissionsFor(d, 'creator'), amendments: amendmentsFor(d, 'creator'), ...extra };
 }
 
 export function dealBrandView(d: WithId<Deal>, extra: { campaignTitle?: string | null; creator?: ReturnType<typeof creatorCardView> | null }) {
-  return { ...dealCore(d), brandPricePaise: d.brandPricePaise ?? null, ...extra };
+  return { ...dealCore(d), brandPricePaise: d.brandPricePaise ?? null, submissions: submissionsFor(d, 'brand'), amendments: amendmentsFor(d, 'brand'), ...extra };
 }
 
 export function dealAdminView(d: WithId<Deal> & { marginPaise?: number | null }) {
@@ -269,6 +335,8 @@ export function dealAdminView(d: WithId<Deal> & { marginPaise?: number | null })
     brandPricePaise: d.brandPricePaise ?? null,
     creatorPayoutPaise: d.creatorPayoutPaise ?? null,
     marginPaise: d.marginPaise ?? null,
+    submissions: submissionsFor(d, 'admin'),
+    amendments: amendmentsFor(d, 'admin'),
     statusHistory: history(d.statusHistory, true),
   };
 }

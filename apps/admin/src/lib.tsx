@@ -7,13 +7,30 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import { ApiError, Loading, createApiClient, type Tone } from '@bluenova/ui';
 
-export interface AdminMe { id: string; role: 'admin'; adminRole: 'super_admin' | 'reviewer' | 'campaign_manager' | 'finance'; name: string | null; email: string }
+export interface AdminMe {
+  id: string; role: 'admin'; adminRole: 'super_admin' | 'reviewer' | 'campaign_manager' | 'finance'; name: string | null; email: string;
+  /** false = the server lets admins in without the authenticator code (temporary testing switch). */
+  adminTotpRequired?: boolean;
+}
 
 let lost: () => void = () => undefined;
 export const api = createApiClient<AdminMe>({ refreshPath: '/auth/admin/refresh', logoutPath: '/auth/admin/logout', onSessionLost: () => lost() });
 
 const MESSAGES: Record<string, string> = {
   'errors.invalidOtp': 'Incorrect or expired authenticator code.',
+  'errors.invalidRecoveryCode': 'That recovery code is wrong or was already used.',
+  'errors.totpSetupMissing': 'Start again: press "Show new authenticator key" first.',
+  'errors.alreadyShortlisted': 'This creator is already on the shortlist for this campaign.',
+  'errors.nothingToChange': 'Nothing was changed. Fill in at least one new value.',
+  'errors.liveBeforeDraft': 'The live date must be on or after the draft date.',
+  'errors.invalidInput': 'Some of the information sent was not allowed. Refresh the page and try again.',
+  'errors.notAWebsiteAccount': 'Conversations are only for creator and brand accounts.',
+  'errors.dealDisputed': 'This deal is paused by an open dispute. Resolve it under Disputes & reports first.',
+  'errors.revisionLimit': 'The brand has used all its change requests.',
+  'errors.idempotencyMismatch': 'Something changed while sending. Refresh the page and try again.',
+  'errors.requestInProgress': 'Still working on the previous click. Wait a moment.',
+  'errors.idempotencyKey': 'Refresh the page and try again.',
+  'errors.invalidJson': 'The request could not be read. Refresh the page and try again.',
   'errors.badCredentials': 'Incorrect email or password.',
   'errors.loginLocked': 'Too many failed attempts. Try again in 15 minutes.',
   'errors.currentPasswordWrong': 'Current password is incorrect.',

@@ -175,6 +175,29 @@ describe('continue with Google', () => {
     expect(team.body.error.message).toBe('errors.googleTeamAccount');
   });
 
+  it('a password set before the email was ever verified stops working once the real owner signs in with Google', async () => {
+    // A stranger signs up with someone else's email and their own password, but can never enter the emailed code.
+    const email = nextEmail();
+    const s = await request(app).post('/api/v1/auth/signup').send(signupBody(email, { name: 'Stranger Person' })).expect(201);
+    // The real owner arrives with Google.
+    fakeGoogle({ sub: 'google-7', email, name: 'Real Owner' });
+    const owner = await request(app).post('/api/v1/auth/google').send({ credential, nonce }).expect(200);
+    await request(app).get('/api/v1/me').set(bearer(owner.body.data.accessToken)).expect(200);
+    // The stranger's password and pending signup ticket no longer open the account.
+    const login = await request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(401);
+    expect(login.body.error.message).toBe('errors.badCredentials');
+    await request(app).post('/api/v1/auth/signup/verify-otp').send({ ticket: s.body.data.ticket, code: '123456' }).expect(400);
+    const u = await UserModel.findOne({ email }).select('+passwordHash').lean();
+    expect(u!.passwordHash).toBeFalsy();
+    expect(u!.name).toBe('Real Owner');
+
+    // An account whose email WAS already verified keeps its password after linking Google.
+    const verified = await signup('brand');
+    fakeGoogle({ sub: 'google-8', email: verified.email });
+    await request(app).post('/api/v1/auth/google').send({ credential, nonce }).expect(200);
+    await request(app).post('/api/v1/auth/login').send({ email: verified.email, password: PASSWORD }).expect(200);
+  });
+
   it('refuses a token whose nonce does not match (replayed or injected token)', async () => {
     fakeGoogle({ sub: 'google-6', email: nextEmail() });
     await request(app).post('/api/v1/auth/google').send({ credential, nonce: 'x'.repeat(32) }).expect(401);
@@ -392,5 +415,95 @@ describe('admin → users', () => {
     const admin = await loginAdmin('super_admin');
     const team = await UserModel.findOne({ email: reviewer.email }).lean();
     await request(app).post(`/api/v1/admin/users/${team!._id}/password`).set(bearer(admin.token)).send({ password: 'Kite-Festival-Rajkot-14', reason: 'x-test' }).expect(403);
+  });
+});
+
+describe('admin recovery codes and a new authenticator phone', () => {
+  // A code from the NEXT 30-second window: still accepted (window ±1), and not blocked as a replay of this window's code.
+  const nextStepCode = (secret: string) => authenticator.clone({ epoch: Date.now() + 30_000 }).generate(secret);
+  const step1 = async (email: string) =>
+    (await request(app).post('/api/v1/auth/admin/login').send({ email, password: PASSWORD }).expect(200)).body.data.mfaToken as string;
+
+  it('a recovery code logs in once, is audited and emailed; new codes replace old ones; the password is required', async () => {
+    const admin = await loginAdmin('reviewer');
+    const make = (token: string, currentPassword: string) =>
+      request(app).post('/api/v1/admin/security/recovery-codes').set(bearer(token)).send({ currentPassword });
+    const wrong = await make(admin.token, 'Wrong-Pass-99').expect(400);
+    expect(wrong.body.error.fields.currentPassword).toBe('errors.currentPasswordWrong');
+    const codes: string[] = (await make(admin.token, PASSWORD).expect(200)).body.data.codes;
+    expect(codes).toHaveLength(10);
+    expect(new Set(codes).size).toBe(10);
+    for (const c of codes) expect(c).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    const stored = await UserModel.findOne({ email: admin.email }).select('+recoveryCodes').lean();
+    expect(JSON.stringify(stored!.recoveryCodes)).not.toContain(codes[0].replace(/-/g, '')); // only fingerprints are stored
+
+    // Lost phone: password, then a recovery code (case, spaces and dashes don't matter).
+    const recover = async (code: string) =>
+      request(app).post('/api/v1/auth/admin/recovery').send({ mfaToken: await step1(admin.email), code });
+    const ok = await recover(` ${codes[0].replace(/-/g, '').toLowerCase()} `);
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.recoveryCodesLeft).toBe(9);
+    const sec = await request(app).get('/api/v1/admin/security').set(bearer(ok.body.data.accessToken)).expect(200);
+    expect(sec.body.data).toEqual({ totpEnabled: true, recoveryCodesLeft: 9 });
+    const reused = await recover(codes[0]);
+    expect(reused.status).toBe(400);
+    expect(reused.body.error.message).toBe('errors.invalidRecoveryCode');
+    expect(await AuditLogModel.exists({ action: 'admin.recovery_code_used' })).toBeTruthy();
+    expect(consoleEmail.sent.some((m) => m.to === admin.email && m.subject.includes('recovery code was used'))).toBe(true);
+
+    // New codes: every old one stops working.
+    await make(ok.body.data.accessToken, PASSWORD).expect(200);
+    expect((await recover(codes[1])).status).toBe(400);
+    // Without the password step there is no way in, and website accounts can't reach these routes.
+    await request(app).post('/api/v1/auth/admin/recovery').send({ mfaToken: 'x'.repeat(40), code: codes[2] }).expect(401);
+    const creator = await signup('creator');
+    await request(app).get('/api/v1/admin/security').set(bearer(creator.token)).expect(401);
+  });
+
+  it('moves the authenticator to a new phone only after a correct code from it, and logs out other devices', async () => {
+    const admin = await loginAdmin('finance');
+    const confirm = (token: string, code: string) => request(app).post('/api/v1/admin/security/totp/confirm').set(bearer(token)).send({ code });
+    const missing = await confirm(admin.token, '123456').expect(409);
+    expect(missing.body.error.message).toBe('errors.totpSetupMissing');
+    await request(app).post('/api/v1/admin/security/totp/start').set(bearer(admin.token)).send({ currentPassword: 'Wrong-Pass-99' }).expect(400);
+    const start = await request(app).post('/api/v1/admin/security/totp/start').set(bearer(admin.token)).send({ currentPassword: PASSWORD }).expect(200);
+    const newSecret: string = start.body.data.secret;
+    expect(start.body.data.otpauthUrl).toMatch(/^otpauth:\/\/totp\//);
+
+    const good = authenticator.generate(newSecret);
+    await confirm(admin.token, good === '000000' ? '111111' : '000000').expect(400);
+    const done = await confirm(admin.token, good).expect(200);
+    await request(app).get('/api/v1/admin/security').set(bearer(admin.token)).expect(401); // the old session ended
+    await request(app).get('/api/v1/admin/security').set(bearer(done.body.data.accessToken)).expect(200);
+    expect(await AuditLogModel.exists({ action: 'admin.authenticator_changed' })).toBeTruthy();
+
+    // At the login screen, the old phone's codes fail and the new phone's codes work.
+    const verify = async (code: string) => request(app).post('/api/v1/auth/admin/totp/verify').send({ mfaToken: await step1(admin.email), code });
+    expect((await verify(nextStepCode(admin.secret))).status).toBe(400);
+    expect((await verify(nextStepCode(newSecret))).status).toBe(200);
+  });
+});
+
+describe('temporary switch: admin login without the authenticator code', () => {
+  it('lets an admin in with the password alone only while ADMIN_TOTP_REQUIRED is false, and audits it', async () => {
+    const { env } = await import('../src/config/env');
+    const admin = await loginAdmin('reviewer'); // creates the account (with two-step login)
+    const login = () => request(app).post('/api/v1/auth/admin/login').send({ email: admin.email, password: PASSWORD });
+    expect((await login().expect(200)).body.data.mfaToken).toBeTruthy(); // default: code required
+    const before = env.ADMIN_TOTP_REQUIRED;
+    (env as { ADMIN_TOTP_REQUIRED: boolean }).ADMIN_TOTP_REQUIRED = false;
+    try {
+      const r = await login().expect(200);
+      expect(r.body.data.accessToken).toBeTruthy();
+      expect(r.body.data.mfaToken).toBeUndefined();
+      expect(r.body.data.user.adminTotpRequired).toBe(false); // the panel shows its warning bar
+      await request(app).get('/api/v1/admin/dashboard').set(bearer(r.body.data.accessToken)).expect(200);
+      expect(await AuditLogModel.exists({ action: 'admin.login_without_totp' })).toBeTruthy();
+      await request(app).post('/api/v1/auth/admin/login').send({ email: admin.email, password: 'Wrong-Pass-99' }).expect(401); // password still checked
+      const creator = await signup('creator');
+      await request(app).post('/api/v1/auth/admin/login').send({ email: creator.email, password: PASSWORD }).expect(401); // still team only
+    } finally {
+      (env as { ADMIN_TOTP_REQUIRED: boolean }).ADMIN_TOTP_REQUIRED = before;
+    }
   });
 });

@@ -3,6 +3,8 @@
  *   console  print to the terminal (development, tests)      smtp   Gmail via Nodemailer (works locally)
  *   brevo    Brevo HTTPS API (works on Render's free plan)   resend Resend HTTPS API
  * Use sendInBackground(emails.xxx(...)) from routes so a slow mail server never slows a request.
+ * Notification emails (offers, reviews, messages…) don't come here directly: they go through the email outbox
+ * (jobs/emailOutbox.ts), which records delivery and retries temporary failures.
  * Email texts (templates) are at the bottom of this file.
  */
 import nodemailer from 'nodemailer';
@@ -22,6 +24,26 @@ export interface EmailMessage {
 export interface EmailProvider {
   send(msg: EmailMessage): Promise<void>;
 }
+
+/**
+ * A provider said no. `transient` = worth trying again later (rate limit, provider outage);
+ * false = it will never work as is (bad address, unverified sender, wrong key).
+ */
+export class EmailSendError extends Error {
+  constructor(message: string, readonly transient: boolean) {
+    super(message);
+  }
+}
+
+/** Should the email outbox retry after this error? Network problems and timeouts: yes. */
+export function isTransientEmailError(err: unknown): boolean {
+  if (err instanceof EmailSendError) return err.transient;
+  const smtpCode = (err as { responseCode?: unknown })?.responseCode;
+  if (typeof smtpCode === 'number') return smtpCode < 500; // SMTP 4xx = try later, 5xx = permanent
+  return true;
+}
+
+const httpTransient = (status: number) => status === 429 || status >= 500;
 
 /** Development only: prints the email's link in the terminal. Refused in production by env validation. */
 class ConsoleEmailProvider implements EmailProvider {
@@ -112,7 +134,7 @@ class ResendEmailProvider implements EmailProvider {
       const body = (await res.json().catch(() => ({}))) as { message?: string; name?: string };
       const reason = body.message ?? `HTTP ${res.status}`;
       logger.error({ status: res.status, reason }, 'Resend email send failed');
-      throw new Error(`Resend refused the email: ${reason}`);
+      throw new EmailSendError(`Resend refused the email: ${reason}`, httpTransient(res.status));
     }
     if (env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
@@ -138,7 +160,7 @@ class BrevoEmailProvider implements EmailProvider {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
       const reason = body.message ?? `HTTP ${res.status}`;
       logger.error({ status: res.status, reason }, 'Brevo email send failed');
-      throw new Error(`Brevo refused the email: ${reason}`);
+      throw new EmailSendError(`Brevo refused the email: ${reason}`, httpTransient(res.status));
     }
     if (env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
@@ -155,6 +177,15 @@ export const email: EmailProvider =
     : env.EMAIL_PROVIDER === 'resend' ? new ResendEmailProvider()
       : env.EMAIL_PROVIDER === 'brevo' ? new BrevoEmailProvider()
         : consoleEmail;
+
+let providerOverride: EmailProvider | null = null;
+/** The provider the email outbox uses (tests can swap in a failing one). */
+export const emailProvider = (): EmailProvider => providerOverride ?? email;
+/** Tests only. */
+export function setEmailProviderForTests(p: EmailProvider | null) {
+  if (env.NODE_ENV !== 'test') throw new Error('test only');
+  providerOverride = p;
+}
 
 /**
  * Sends an email WITHOUT making the request wait for it ("fire and forget").
@@ -204,5 +235,19 @@ export const emails = {
     to,
     subject: 'Your Bluenova password was changed',
     text: `Hi ${name},\n\nYour password was just changed and you were logged out on all devices.\nIf this wasn't you, reset your password immediately and contact us on +91 76002 36644.${footer}`,
+  }),
+  /** Admins only (English). Sent whenever a recovery code is used to log in. */
+  recoveryCodeUsed: (to: string, name: string, left: number): EmailMessage => ({
+    to,
+    subject: 'A Bluenova admin recovery code was used',
+    text: `Hi ${name},\n\nSomeone just signed in to your Bluenova admin account with a recovery code instead of the authenticator app. You have ${left} recovery code${left === 1 ? '' : 's'} left.\n\nIf this was you: open Admin → Settings → Security and set up your authenticator on your new phone.\nIf this wasn't you: tell the super admin immediately. Your password and recovery codes must be replaced.${footer}`,
+  }),
+  /** Admins only (English). Sent when the authenticator or the recovery codes change. */
+  adminSecurityChanged: (to: string, name: string, what: 'authenticator' | 'recovery_codes'): EmailMessage => ({
+    to,
+    subject: 'Your Bluenova admin security settings changed',
+    text: `Hi ${name},\n\n${what === 'authenticator'
+      ? 'Your admin account now uses a new authenticator app. Codes from the old app no longer work, and other devices were logged out.'
+      : 'New recovery codes were created for your admin account. The old codes no longer work.'}\nIf this wasn't you, tell the super admin immediately.${footer}`,
   }),
 };

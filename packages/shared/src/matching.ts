@@ -2,11 +2,13 @@
  * MATCH SCORE: ranks approved creators for a campaign (category, city, language, size, budget fit, quality).
  * Used by the admin "matches" list.
  */
-import type { DeliverableType, FollowerBand } from './enums';
+import type { FollowerBand, StoredDeliverableType as DeliverableType } from './enums';
 
 export interface MatchCreator {
   categories: string[];
   city: string;
+  /** Other cities the creator can make content in (counts like their home city). */
+  areas?: string[];
   languages: string[];
   followerBand: FollowerBand;
   rateCardPaise: Partial<Record<DeliverableType, number>>;
@@ -37,7 +39,7 @@ const overlap = (a: string[], b: string[]) => a.some((x) => b.includes(x));
 /** Match score 0–100 (spec §12). Empty campaign filters count as a match. */
 export function matchScore(c: MatchCreator, m: MatchCampaign): MatchBreakdown {
   const category = m.categories.length === 0 || overlap(c.categories, m.categories) ? 35 : 0;
-  const city = m.cities.length === 0 || m.cities.includes(c.city) ? 20 : 0;
+  const city = m.cities.length === 0 || m.cities.includes(c.city) || (c.areas ?? []).some((a) => m.cities.includes(a)) ? 20 : 0;
   const language = m.languages.length === 0 || overlap(c.languages, m.languages) ? 15 : 0;
   const followerBand = m.followerBands.length === 0 || m.followerBands.includes(c.followerBand) ? 10 : 0;
   let budget = 5; // unknown budget or rate: neutral

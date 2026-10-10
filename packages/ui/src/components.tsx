@@ -7,6 +7,7 @@ import {
   type SelectHTMLAttributes, type TextareaHTMLAttributes,
 } from 'react';
 import { AlertCircle, Check, CheckCircle2, ChevronDown, Circle, Eye, EyeOff, Info, Loader2, X, XCircle } from 'lucide-react';
+import { newIdempotencyKey } from './api';
 
 export const cx = (...c: (string | number | false | null | undefined)[]) => c.filter((x) => typeof x === 'string' && x).join(' ');
 
@@ -459,7 +460,7 @@ export function CopyButton({ value, label = 'Copy', copiedLabel = 'Copied' }: { 
 
 /** Only renders https links, always with noopener/noreferrer. */
 export function ExternalLink({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
-  let safe = false;
+  let safe: boolean;
   try {
     safe = new URL(href).protocol === 'https:';
   } catch {
@@ -467,4 +468,21 @@ export function ExternalLink({ href, children, className }: { href: string; chil
   }
   if (!safe) return <span className={className}>{children}</span>;
   return <a href={href} target="_blank" rel="noopener noreferrer nofollow" className={cx('font-medium text-primary underline-offset-2 hover:underline', className)}>{children}</a>;
+}
+
+/**
+ * Idempotency keys for important buttons (submit payment, accept offer, start campaign…).
+ * keyFor(body) gives the SAME key when the same thing is sent again from this page (double click, retry after a
+ * network error), so the API does it only once, and a different key when the content changes.
+ * Call renew() after success, so a later, deliberate repeat counts as a new action.
+ */
+export function useIdempotencyKey() {
+  const [nonce, setNonce] = useState(newIdempotencyKey);
+  const keyFor = (body?: unknown) => {
+    // FNV-1a hash of the request content: short, and only needs to tell different requests apart.
+    let h = 0x811c9dc5;
+    for (const ch of JSON.stringify(body ?? null)) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193);
+    return `${nonce}-${(h >>> 0).toString(16)}`;
+  };
+  return { keyFor, renew: () => setNonce(newIdempotencyKey()) };
 }

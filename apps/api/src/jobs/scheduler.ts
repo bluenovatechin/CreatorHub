@@ -1,8 +1,11 @@
 /**
- * BACKGROUND JOBS (run inside the API process every 10 minutes; started by server.ts).
- * Currently one job: offers nobody answered in time become EXPIRED and the creator is notified.
+ * BACKGROUND JOBS (run inside the API process; started by server.ts). This file: offers nobody answered in
+ * time become EXPIRED and the creator is notified; plus the timer that runs every job (startScheduler).
+ * Other jobs: deadlines.ts (reminders, auto-approve), emailOutbox.ts (notification emails).
  */
 import { logger } from '../lib/logger';
+import { autoApproveDrafts, remindDeadlines } from './deadlines';
+import { processEmailOutbox } from './emailOutbox';
 import { notify } from '../lib/notify';
 import { CampaignModel } from '../models/campaign';
 import { CreatorProfileModel } from '../models/creatorProfile';
@@ -27,12 +30,20 @@ export async function expireOffers(now = new Date()) {
 }
 
 /**
- * In-process scheduler for development and single-instance deployments.
- * Moves to the BullMQ worker once Redis is available (spec §18).
+ * In-process scheduler (one API server, so no job queue is needed):
+ *   every 10 min  expire unanswered offers, deadline reminders, auto-approve drafts the brand didn't review
+ *   every minute  send queued notification emails (jobs/emailOutbox.ts)
+ * Every job is safe to run twice at the same time (atomic claims), e.g. if Render briefly runs two copies.
  */
 export function startScheduler() {
-  const run = () => expireOffers().catch((err) => logger.error({ err }, 'expireOffers failed'));
-  const timer = setInterval(run, 10 * 60_000);
-  timer.unref();
-  void run();
+  const every10 = () => {
+    expireOffers().catch((err) => logger.error({ err }, 'expireOffers failed'));
+    remindDeadlines().catch((err) => logger.error({ err }, 'remindDeadlines failed'));
+    autoApproveDrafts().catch((err) => logger.error({ err }, 'autoApproveDrafts failed'));
+  };
+  const everyMinute = () => processEmailOutbox().catch((err) => logger.error({ err }, 'email outbox failed'));
+  setInterval(every10, 10 * 60_000).unref();
+  setInterval(everyMinute, 60_000).unref();
+  every10();
+  void everyMinute();
 }

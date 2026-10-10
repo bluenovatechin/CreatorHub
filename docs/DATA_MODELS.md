@@ -82,10 +82,25 @@ Created when the person chooses "creator". It is filled in during onboarding.
 
 ## `offers` and `deals` (`models/deal.ts`)
 - **Offer:** created when a brand selects a shortlisted creator. Fields: `payoutPaise`, `deliverables`, `deadlines{draftDue, liveDue}`, `briefSnapshot` (a copy of the brief at that moment), `status`, `decline{reason, note}`, `expiresAt` (48 h).
-- **Deal:** created when the creator accepts (type `BRAND`), or automatically on approval (type `INTRO_REEL`). Fields: `brandPricePaise`, `creatorPayoutPaise`, `marginPaise` (Bluenova's share, **select:false, never shown to either side**), `status`, `statusHistory`, revisions.
+- **Deal:** created when the creator accepts (type `BRAND`), or automatically on approval (type `INTRO_REEL`). Fields: `brandPricePaise`, `creatorPayoutPaise`, `marginPaise` (Bluenova's share, **select:false, never shown to either side**), `status`, `statusHistory`, `maxRevisions` / `brandRevisionsUsed`, `submissions[]` (each: `kind` DRAFT/LIVE, `url`, `note`, `submittedAt`, `sharedWithBrand`, `reviews[]` by team/brand), `completedAt`.
+- **Unique rules:** one deal per offer (`one_deal_per_offer`).
+
+## `applications` (`models/application.ts`)
+A creator's application to an open campaign: `campaignId`, `creatorId`, `pitch`, `proposedRatePaise`, `status` (SUBMITTED → SHORTLISTED / DECLINED / WITHDRAWN), `decisionNote` (shown to the creator when declined), `shortlistItemId`. One per creator per campaign. Brands never see applications.
+
+## `conversations` and `messages` (`models/conversation.ts`)
+One creator/brand ↔ the Bluenova team (never creator ↔ brand). Conversation: `ownerUserId`, `ownerRole`, `subject`, `topic{type, id}` (one of their own campaigns/deals), `status` OPEN/CLOSED, `lastMessageAt`, `unreadByUser`, `unreadByTeam`. Message: `conversationId`, `from` (user/team), `senderId`, `body` (plain text).
+
+## Trust & safety (`models/trust.ts`)
+- **`disputes`:** a problem on a running brand deal. `dealId`, `raisedBy`/`raisedByRole`, `reason`, `description`, `previousStatus`, `status` OPEN/RESOLVED, `resolution{outcome CONTINUE/CANCEL, note}`. One open dispute per deal.
+- **`reports`:** `reporterUserId`/`reporterRole`, `targetType` CAMPAIGN/CREATOR, `targetId`, `reason`, `details`, `status` OPEN/ACTIONED/DISMISSED, `reviewNote` (internal). One open report per person per target.
+- **`ratings`:** after a COMPLETED brand deal, one per side: `stars` 1–5, `comment`. Team-only; the profiles keep `ratingAvg` / `ratingCount` (creators also see their own average).
+
+## `idempotencykeys` (`models/idempotency.ts`)
+The saved answers for `Idempotency-Key` requests (see docs/API.md). Deleted automatically: unfinished after 5 minutes, finished after 24 hours.
 
 ## `payments` (`models/payment.ts`): only used when payments are ON
-`campaignId`, `brandId`, `dealIds[]`, `subtotalPaise`, `gst{rateBps, cgstPaise, sgstPaise, igstPaise}`, `totalPaise`, `method` (UPI / NEFT / …), `reference` (UTR, unique while not rejected), `amountPaidPaise`, `paidOn`, `payerName`, `status` (SUBMITTED / VERIFIED / REJECTED), `reviewedBy`, `rejectReason`.
+`campaignId`, `brandId`, `dealIds[]`, `subtotalPaise`, `gst{rateBps, cgstPaise, sgstPaise, igstPaise}`, `totalPaise`, `method` (UPI / NEFT / …), `reference` (UTR, unique while not rejected), `amountPaidPaise`, `paidOn`, `payerName`, `status` (SUBMITTED / VERIFIED / REJECTED), `reviewedBy`, `rejectReason`. At most one SUBMITTED payment per campaign (`one_submitted_payment_per_campaign`).
 
 ## System (`models/system.ts`)
 - **`notifications`:** `userId`, `type` (e.g. `creator_new_offer`; the text comes from i18n `notif.<type>`), `params`, `link` (internal path), `readAt`.
@@ -96,6 +111,8 @@ Created when the person chooses "creator". It is filled in during onboarding.
 
 ## State machines (`packages/shared/src/stateMachines.ts`)
 Only these moves are possible, and only by the listed actor. Anything else is rejected with 409.
+
+Added in October 2026 (see the file for the full lists): `applicationMachine` (team shortlists/declines, creator withdraws), `conversationMachine` (team closes; a new message re-opens), `disputeMachine` (team resolves), `reportMachine` (team actions/dismisses), and the deal machine's dispute exits (DISPUTED → back to the earlier status, or CANCELLED; campaign managers only). While a deal is DISPUTED, the work routes refuse every action (`errors.dealDisputed`).
 
 **Creator profile**
 ```mermaid

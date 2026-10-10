@@ -22,8 +22,18 @@ export type AgeGroup = (typeof AGE_GROUPS)[number];
 export const FOLLOWER_BANDS = ['NANO', 'MICRO', 'MID', 'MACRO', 'MEGA'] as const;
 export type FollowerBand = (typeof FOLLOWER_BANDS)[number];
 
-export const DELIVERABLE_TYPES = ['REEL', 'POST', 'STORY', 'STORY_WITH_LINK', 'CAROUSEL'] as const;
+/**
+ * What a creator can be booked for (product decision 2026-10-10): Instagram Reels, Stories, and Collab (one post
+ * published on BOTH the creator's and the brand's account through Instagram's Collab feature, only when both sides
+ * agree in the deal). New campaigns and rate cards can only use these.
+ */
+export const DELIVERABLE_TYPES = ['REEL', 'STORY', 'COLLAB'] as const;
 export type DeliverableType = (typeof DELIVERABLE_TYPES)[number];
+/** Older formats no longer offered. Kept only so campaigns/deals saved before the change still load and display. */
+export const LEGACY_DELIVERABLE_TYPES = ['POST', 'STORY_WITH_LINK', 'CAROUSEL'] as const;
+/** Everything that may exist in the database (models use this; input validation uses DELIVERABLE_TYPES). */
+export const STORED_DELIVERABLE_TYPES = [...DELIVERABLE_TYPES, ...LEGACY_DELIVERABLE_TYPES] as const;
+export type StoredDeliverableType = (typeof STORED_DELIVERABLE_TYPES)[number];
 
 export const CAMPAIGN_GOALS = ['AWARENESS', 'STORE_VISITS', 'SALES', 'APP_INSTALLS', 'LAUNCH', 'OTHER'] as const;
 export type CampaignGoal = (typeof CAMPAIGN_GOALS)[number];
@@ -50,6 +60,26 @@ export type ShortlistStatus = (typeof SHORTLIST_STATUSES)[number];
 
 export const OFFER_STATUSES = ['SENT', 'ACCEPTED', 'DECLINED', 'COUNTERED', 'EXPIRED', 'WITHDRAWN'] as const;
 export type OfferStatus = (typeof OFFER_STATUSES)[number];
+
+/** A creator's application to an open campaign. The Bluenova team reviews it (brands never see applications). */
+export const APPLICATION_STATUSES = ['SUBMITTED', 'SHORTLISTED', 'DECLINED', 'WITHDRAWN'] as const;
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
+
+/** A conversation between ONE creator or brand and the Bluenova team (creators and brands never message each other). */
+export const CONVERSATION_STATUSES = ['OPEN', 'CLOSED'] as const;
+export type ConversationStatus = (typeof CONVERSATION_STATUSES)[number];
+
+/** A problem with a running brand deal, raised by the creator or the brand; the team resolves it. */
+export const DISPUTE_REASONS = ['QUALITY', 'DEADLINE', 'BRIEF_CHANGED', 'COMMUNICATION', 'PAYMENT', 'OTHER'] as const;
+export type DisputeReason = (typeof DISPUTE_REASONS)[number];
+export const DISPUTE_STATUSES = ['OPEN', 'RESOLVED'] as const;
+export type DisputeStatus = (typeof DISPUTE_STATUSES)[number];
+
+/** A report about a campaign (by a creator) or a creator (by a brand); the team reviews it. */
+export const REPORT_REASONS = ['FAKE', 'SPAM', 'ABUSE', 'FRAUD', 'INAPPROPRIATE', 'OTHER'] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
+export const REPORT_STATUSES = ['OPEN', 'ACTIONED', 'DISMISSED'] as const;
+export type ReportStatus = (typeof REPORT_STATUSES)[number];
 
 export const DEAL_TYPES = ['BRAND', 'INTRO_REEL'] as const;
 export type DealType = (typeof DEAL_TYPES)[number];

@@ -179,7 +179,7 @@ describe('brand → shortlist → offer → deal', () => {
     await request(app).get(`/api/v1/campaigns/${campaignId}/checkout`).set(bearer(other.token)).expect(404);
 
     // Wrong amount, bad reference format and future dates are rejected
-    let r = await request(app).post(`/api/v1/campaigns/${campaignId}/payments`).set(bearer(brand.token)).send({ ...pay, amountPaid: 10700 }).expect(400);
+    const r = await request(app).post(`/api/v1/campaigns/${campaignId}/payments`).set(bearer(brand.token)).send({ ...pay, amountPaid: 10700 }).expect(400);
     expect(r.body.error.fields.amountPaid).toBe('errors.amountMismatch');
     await request(app).post(`/api/v1/campaigns/${campaignId}/payments`).set(bearer(brand.token)).send({ ...pay, reference: 'ABC' }).expect(400);
     await request(app).post(`/api/v1/campaigns/${campaignId}/payments`).set(bearer(brand.token)).send({ ...pay, paidOn: '2999-01-01' }).expect(400);
@@ -252,6 +252,16 @@ describe('validation and errors', () => {
     expect(JSON.stringify(r.body)).not.toMatch(/at .*\.ts/);
     const bad = await request(app).get('/api/v1/campaigns/not-an-id').set(bearer((await activeBrand()).token)).expect(400);
     expect(bad.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects database operators in input and repeated query parameters (Express 5 guards)', async () => {
+    const op = await request(app).post('/api/v1/auth/login').send({ email: { $ne: null }, password: 'x' }).expect(400);
+    expect(op.body.error.message).toBe('errors.invalidInput');
+    await request(app).post('/api/v1/auth/login').send({ 'profile.role': 'admin', email: 'a@example.com', password: 'x' }).expect(400);
+    const deep = (n: number): object => (n === 0 ? { x: 1 } : { a: deep(n - 1) });
+    await request(app).post('/api/v1/auth/login').send(deep(25)).expect(400);
+    const twice = await request(app).get('/api/v1/notifications?cursor=a&cursor=b').expect(400);
+    expect(twice.body.error.message).toBe('errors.invalidInput');
   });
 
   it('rejects oversized bodies', async () => {

@@ -20,7 +20,7 @@ import { z } from 'zod';
 import { objectId, passwordProblem } from '@bluenova/shared';
 import { requireAdmin } from '../../middleware/auth';
 import { validate } from '../../middleware/validate';
-import { audit } from '../../lib/audit';
+import { audit, auditView } from '../../lib/audit';
 import { AppError, notFound } from '../../lib/errors';
 import { cursorPage, h, input, ok } from '../../lib/http';
 import { invalidateUser } from '../../lib/userCache';
@@ -127,7 +127,7 @@ adminUsersRouter.get('/users/:id', idParams, h(async (req, res) => {
     RefreshTokenModel.find({ userId: u._id, revokedAt: null, expiresAt: { $gt: new Date() } }, { kind: 1, ip: 1, userAgent: 1, createdAt: 1 })
       .sort({ _id: -1 }).limit(10).lean(),
   ]);
-  await audit(req, 'user.view', 'User', u._id); // reading personal data is recorded too
+  await auditView(req, 'user.view', 'User', u._id); // reading personal data is recorded too (once per 10 min)
   ok(res, {
     ...accountView(u),
     consents: (u.consents ?? []).map((c) => ({ type: c.type, version: c.version, acceptedAt: c.acceptedAt })),

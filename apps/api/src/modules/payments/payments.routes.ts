@@ -11,6 +11,7 @@ import {
   type PaymentDetailsInput, type PaymentSubmitInput,
 } from '@bluenova/shared';
 import { requireAdmin } from '../../middleware/auth';
+import { idempotent } from '../../middleware/idempotency';
 import { validate } from '../../middleware/validate';
 import { audit } from '../../lib/audit';
 import { AppError, invalidState, notFound } from '../../lib/errors';
@@ -64,7 +65,8 @@ async function requirePaymentsEnabled() {
 
 /** Mounted inside the brands router, which already requires a signed-in brand. */
 export const brandPaymentsRouter = Router();
-brandPaymentsRouter.use('/campaigns/:id/(checkout|payments)', h(async (_req, _res, next) => { await requirePaymentsEnabled(); next(); }));
+// (Express 5 route paths have no regex groups, so the two paths are listed.)
+brandPaymentsRouter.use(['/campaigns/:id/checkout', '/campaigns/:id/payments'], h(async (_req, _res, next) => { await requirePaymentsEnabled(); next(); }));
 
 async function ownCampaign(req: Request) {
   const brand = await BrandProfileModel.findOne({ userId: req.auth!.id });
@@ -95,7 +97,7 @@ brandPaymentsRouter.get('/campaigns/:id/checkout', idParams, h(async (req, res) 
   });
 }));
 
-brandPaymentsRouter.post('/campaigns/:id/payments', validate({ params: z.object({ id: objectId }), body: paymentSubmitSchema }), h(async (req, res) => {
+brandPaymentsRouter.post('/campaigns/:id/payments', idempotent, validate({ params: z.object({ id: objectId }), body: paymentSubmitSchema }), h(async (req, res) => {
   const { brand, campaign } = await ownCampaign(req);
   const d = input<PaymentSubmitInput>(req);
   const settings = await getSettings();
@@ -148,7 +150,7 @@ adminPaymentsRouter.put('/settings/features', requireAdmin('super_admin'), valid
  * Payments switched off: once creators have accepted, the team confirms the campaign with the brand
  * outside the website and starts it here.
  */
-adminPaymentsRouter.post('/campaigns/:id/start', requireAdmin('campaign_manager'), validate({ params: z.object({ id: objectId }) }), h(async (req, res) => {
+adminPaymentsRouter.post('/campaigns/:id/start', requireAdmin('campaign_manager'), idempotent, validate({ params: z.object({ id: objectId }) }), h(async (req, res) => {
   if ((await getSettings()).paymentsEnabled) throw new AppError('INVALID_STATE', 'errors.usePaymentFlow');
   const { id } = input<{ id: string }>(req, 'params');
   const started = await withTransaction(async (session) => {
@@ -196,7 +198,7 @@ adminPaymentsRouter.get('/payments', requireAdmin('finance', 'campaign_manager')
 );
 
 /** Finance checks the bank statement, then verifies (work starts) or rejects (brand can resubmit). */
-adminPaymentsRouter.post('/payments/:id/review', requireAdmin('finance'),
+adminPaymentsRouter.post('/payments/:id/review', requireAdmin('finance'), idempotent,
   validate({ params: z.object({ id: objectId }), body: paymentReviewSchema }),
   h(async (req, res) => {
     const { id } = input<{ id: string }>(req, 'params');

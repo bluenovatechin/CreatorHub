@@ -1,0 +1,7 @@
+# Files Prettier never checks (generated, third-party, or prose we format by hand).
+node_modules
+dist
+coverage
+package-lock.json
+*.md
+*.docx

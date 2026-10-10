@@ -6,7 +6,7 @@
 import { Schema, model, type InferSchemaType, type HydratedDocument } from 'mongoose';
 import {
   AGE_GROUPS, CAMPAIGN_GOALS, CAMPAIGN_STATUSES, CATEGORY_KEYS, CITY_KEYS, COLLAB_TYPES,
-  DELIVERABLE_TYPES, FOLLOWER_BANDS, GENDERS, LANGUAGES, SHORTLIST_STATUSES,
+  STORED_DELIVERABLE_TYPES, FOLLOWER_BANDS, GENDERS, LANGUAGES, SHORTLIST_STATUSES,
 } from '@bluenova/shared';
 
 const statusHistory = new Schema(
@@ -14,7 +14,7 @@ const statusHistory = new Schema(
   { _id: false },
 );
 
-const deliverable = new Schema({ type: { type: String, enum: DELIVERABLE_TYPES }, quantity: Number }, { _id: false });
+const deliverable = new Schema({ type: { type: String, enum: STORED_DELIVERABLE_TYPES }, quantity: Number }, { _id: false }); // incl. older formats
 
 const campaignSchema = new Schema(
   {

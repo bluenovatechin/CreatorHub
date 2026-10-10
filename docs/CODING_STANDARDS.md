@@ -13,7 +13,13 @@ The goal is code a beginner can follow: **the same pattern everywhere, small fun
   - Files: `area.routes.ts`, `area.service.ts`; React page files: `PascalCase.tsx`.
 - **Quotes and semicolons:** single quotes, semicolons, 2-space indent, trailing commas (match the surrounding code).
 - **Dead code:** no dead code or commented-out code. Delete it; git remembers.
-- **Before you finish:** `npm run typecheck` and `npm test` must pass.
+- **Before you finish:** `npm run typecheck`, `npm run lint` (0 errors) and `npm test` must pass. See "Linting and formatting" below.
+
+### Linting and formatting
+- `npm run lint` checks every package with ESLint (`eslint.config.mjs` at the root). It only reports; `npm run lint:fix` applies safe automatic fixes.
+- **Errors must be 0.** Warnings are allowed for now: they are React Compiler hints (e.g. a component declared inside another component). Fix them when you touch that page.
+- A rule broken on purpose gets a one-line `// eslint-disable-next-line <rule> -- <why>` comment, never a file-wide disable.
+- `npm run format:check` compares files with the Prettier style (`.prettierrc.json`: single quotes, semicolons, 140 columns). Existing files are **not** reformatted yet (that would be one huge diff); format new files, and reformat old ones only in a dedicated change.
 
 ## 2. API (`apps/api`)
 
@@ -96,4 +102,4 @@ thingsRouter.post('/things/:id/approve',
 ## 5. Git
 - **Branches:** small, focused commits with messages that say what changed for the user, e.g. `Ask creator/brand after first login`.
 - **Never commit** `.env`, `ADMIN_SECRET.txt`, `node_modules`, `dist` (all in `.gitignore`).
-- **Before pushing:** typecheck + tests. Render and Vercel deploy automatically from `main`.
+- **Before pushing:** typecheck + lint + tests. Render and Vercel deploy automatically from `main`.

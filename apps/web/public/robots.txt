@@ -1,0 +1,11 @@
+# Search engines may list the public pages; private areas are excluded (they are also marked noindex).
+# If the website moves to its own domain, update the Sitemap line and public/sitemap.xml (docs/DEPLOYMENT.md).
+User-agent: *
+Allow: /
+Disallow: /creator
+Disallow: /brand
+Disallow: /welcome
+Disallow: /auth
+Disallow: /reset-password
+Disallow: /api/
+Sitemap: https://creator-hub-mu-five.vercel.app/sitemap.xml

@@ -20,7 +20,10 @@
     "menu": "Menu",
     "skip": "Skip to content",
     "openMenu": "Open menu",
-    "closeMenu": "Close menu"
+    "closeMenu": "Close menu",
+    "messages": "Messages",
+    "pricing": "Pricing",
+    "contact": "Contact"
   },
   "common": {
     "next": "Next",
@@ -54,7 +57,11 @@
     "copied": "Copied",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-    "testBanner": "Test version — data may be reset at any time."
+    "testBanner": "Test version — data may be reset at any time.",
+    "selfReported": "Numbers given by the creator (self-reported); the Bluenova team checks them during review.",
+    "loadMore": "Load more",
+    "typeCity": "Type a city name…",
+    "noCity": "No city found. Try another spelling, or choose \"Other (Gujarat)\"."
   },
   "lang": {
     "gu": "ગુજરાતી",
@@ -84,7 +91,7 @@
       "toastText": "Diwali campaign · Surat"
     },
     "stat1": "Categories",
-    "stat2": "Gujarat cities covered",
+    "stat2": "Cities covered",
     "stat3": "Profiles reviewed by our team",
     "stat4": "Languages",
     "howEyebrow": "How it works",
@@ -332,7 +339,8 @@
     "POST": "Post",
     "STORY": "Story",
     "STORY_WITH_LINK": "Story with link",
-    "CAROUSEL": "Carousel"
+    "CAROUSEL": "Carousel",
+    "COLLAB": "Collab (on both accounts, if both agree)"
   },
   "band": {
     "NANO": "Nano (1k–10k)",
@@ -413,7 +421,9 @@
     "s5Text": "Check your details. You can't edit while we review.",
     "submit": "Submit for review",
     "changesBanner": "Please update your profile:",
-    "incomplete": "Some steps are incomplete. Please check each step."
+    "incomplete": "Some steps are incomplete. Please check each step.",
+    "areas": "Areas where you can make reels and stories",
+    "areasHint": "Choose all the cities you can shoot in or reach. You can pick many."
   },
   "creatorStatus": {
     "title": "Application status",
@@ -462,8 +472,7 @@
     "c7": "Use your own creative style if you like",
     "important": "Important",
     "importantText": "This reel isn't just an announcement — it helps your audience understand that Bluenova Creator Hub connects brands with creators. Keep your personality and style. ❤️",
-    "posting": "After your reel is ready, we'll share caption and collab details.",
-    "uploadSoon": "Draft upload opens in the next update. For now, share your draft with the Bluenova team on WhatsApp: +91 76002 36644."
+    "posting": "After your reel is ready, we'll share caption and collab details."
   },
   "opps": {
     "title": "Opportunities",
@@ -472,7 +481,9 @@
     "markInterested": "I'm interested",
     "none": "No matching campaigns right now",
     "noneText": "We'll show new campaigns here as brands post them.",
-    "notApproved": "Opportunities open after your profile is approved."
+    "notApproved": "Opportunities open after your profile is approved.",
+    "savedOnly": "Only my interested",
+    "noneSaved": "No saved campaigns yet. Mark campaigns as interested to find them here."
   },
   "offers": {
     "title": "Offers",
@@ -529,7 +540,9 @@
     "pincode": "PIN code",
     "pincodeHint": "Must belong to the selected state.",
     "consentBrand": "I agree to the Brand Agreement, including not making direct deals with creators introduced by Bluenova",
-    "save": "Save & continue"
+    "save": "Save & continue",
+    "areas": "Areas where you want promotions",
+    "areasHint": "Choose every city where you want reels and stories. New campaigns start with these cities."
   },
   "brandHome": {
     "hello": "Welcome, {{name}}",
@@ -594,7 +607,9 @@
     "usageDays": "For how many days?",
     "reviewTitle": "Review & submit",
     "submit": "Submit to Bluenova",
-    "submitted": "Submitted! We'll prepare your shortlist."
+    "submitted": "Submitted! We'll prepare your shortlist.",
+    "confirmTitle": "Submit this campaign for review?",
+    "confirmText": "The Bluenova team will review it and build your shortlist. After submitting, you can no longer edit the campaign (you can still cancel it)."
   },
   "campaign": {
     "details": "Campaign details",
@@ -613,7 +628,10 @@
     "paymentDue": "Creators have accepted. Pay Bluenova to start the campaign.",
     "payNow": "Pay & start campaign",
     "paymentPending": "Your payment is being verified by our finance team.",
-    "awaitingStart": "Creators have accepted! The Bluenova team will contact you to confirm and start the campaign."
+    "awaitingStart": "Creators have accepted! The Bluenova team will contact you to confirm and start the campaign.",
+    "confirmSendTitle": "Send offers to {{n}} creator(s)?",
+    "confirmSendText": "The selected creators get an offer right away. Total for this selection: {{amount}}. This can't be undone.",
+    "copy": "Copy campaign"
   },
   "payment": {
     "title": "Payment",
@@ -685,7 +703,26 @@
     "brand_payment_verified": "Payment verified for “{{campaign}}”. Creators have started.",
     "brand_payment_rejected": "We couldn't verify your payment for “{{campaign}}”. Please check and resubmit.",
     "default": "You have an update.",
-    "brand_campaign_started": "Your campaign “{{campaign}}” has started. Creators are now creating content."
+    "brand_campaign_started": "Your campaign “{{campaign}}” has started. Creators are now creating content.",
+    "creator_draft_approved": "Your draft for “{{campaign}}” was approved. Post it and send the live link.",
+    "creator_revision_requested": "Changes were requested for “{{campaign}}”.",
+    "creator_live_rejected": "Your live post for “{{campaign}}” needs a fix.",
+    "creator_deal_completed": "“{{campaign}}” is completed. Thank you!",
+    "creator_application_shortlisted": "You were shortlisted for “{{campaign}}”.",
+    "creator_application_declined": "Your application for “{{campaign}}” was not selected this time.",
+    "brand_draft_ready": "A draft from {{creator}} for “{{campaign}}” is ready for your review.",
+    "brand_deal_completed": "{{creator}} completed their post for “{{campaign}}”.",
+    "brand_campaign_completed": "Your campaign “{{campaign}}” is completed.",
+    "message_from_team": "New message from the Bluenova team: {{subject}}",
+    "deal_disputed": "A collaboration in “{{campaign}}” is paused while the Bluenova team looks into a problem.",
+    "dispute_resolved": "The problem in “{{campaign}}” was resolved. Open the collaboration for details.",
+    "report_reviewed": "The Bluenova team reviewed your report. Thank you.",
+    "creator_draft_due_soon": "Reminder: your draft for “{{campaign}}” is due on {{date}}.",
+    "creator_live_due_soon": "Reminder: your post for “{{campaign}}” should be live by {{date}}.",
+    "creator_deadline_missed": "The deadline for “{{campaign}}” has passed. Send your work or message the Bluenova team.",
+    "brand_draft_auto_approved": "The draft from {{creator}} for “{{campaign}}” was approved automatically because the review time ended.",
+    "deal_amended": "The terms of your collaboration in “{{campaign}}” were updated by the Bluenova team.",
+    "deal_cancelled": "A collaboration in “{{campaign}}” was cancelled by the Bluenova team."
   },
   "settings": {
     "title": "Settings",
@@ -698,7 +735,12 @@
     "passwordChanged": "Password changed. Other devices have been logged out.",
     "security": "Security",
     "logoutAll": "Log out of all devices",
-    "logoutAllText": "Use this if you lost a phone or think someone else has access."
+    "logoutAllText": "Use this if you lost a phone or think someone else has access.",
+    "emailTitle": "Email notifications",
+    "emailText": "Also email me about important updates: offers, reviews, deadlines and messages from the Bluenova team. Login codes and password emails are always sent.",
+    "emailOn": "Emails on",
+    "emailOff": "Emails off",
+    "saved": "Saved."
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -809,7 +851,22 @@
     "googleNotVerified": "This Google account email is not verified.",
     "googleNotConfigured": "Google sign-in is not available yet.",
     "googleTeamAccount": "This Google account is a Bluenova team (admin) account. Team members log in at the admin panel. To try the website, use a different Google account or email.",
-    "googleCancelled": "Google sign-in was cancelled. You can try again or use your email."
+    "googleCancelled": "Google sign-in was cancelled. You can try again or use your email.",
+    "alreadyApplied": "You have already applied to this campaign.",
+    "alreadyRated": "You have already rated this collaboration.",
+    "alreadyReported": "You have already reported this. The team is reviewing it.",
+    "dealDisputed": "This collaboration is paused while the Bluenova team looks into a problem.",
+    "idempotencyKey": "Something went wrong. Please refresh the page and try again.",
+    "idempotencyMismatch": "Something changed while sending. Please refresh the page and try again.",
+    "invalidJson": "The request could not be read. Please refresh the page and try again.",
+    "rateAfterCompletion": "You can rate a collaboration once it is completed.",
+    "reasonRequired": "Please write a short note (at least 3 characters).",
+    "requestInProgress": "Still working on your last request. Please wait a moment.",
+    "revisionLimit": "No change requests left for this collaboration. Message the Bluenova team if something is still wrong.",
+    "stars": "Choose 1 to 5 stars.",
+    "invalidInput": "Some of the information sent was not allowed. Please refresh the page and try again.",
+    "nothingToChange": "Nothing was changed.",
+    "liveBeforeDraft": "The live date must be on or after the draft date."
   },
   "footer": {
     "tagline": "Brands અને creators વચ્ચે collaboration માટેનું platform.",
@@ -831,5 +888,281 @@
     "summary": "In short",
     "contents": "Contents",
     "questions": "Questions? Call +91 76002 36644 or visit bluenovatech.in."
+  },
+  "work": {
+    "yourTurn": "Your turn",
+    "history": "Work sent so far",
+    "none": "Nothing sent yet.",
+    "draft": "Draft",
+    "live": "Live post",
+    "draftUrl": "Link to your draft",
+    "draftHint": "Google Drive, Dropbox or an unlisted video link. Check that anyone with the link can open it.",
+    "liveUrl": "Link to your live Instagram post",
+    "liveHint": "On Instagram: ⋯ → Copy link. It must be a public reel or post.",
+    "note": "Note (optional)",
+    "sendDraft": "Send draft",
+    "sendLive": "Send live link",
+    "approve": "Approve draft",
+    "askChanges": "Ask for changes",
+    "changesNote": "What should change?",
+    "sendChanges": "Send change request",
+    "revisionsLeft": "Change requests left: {{count}}",
+    "by": {
+      "team": "Bluenova team",
+      "brand": "Brand",
+      "system": "Automatic"
+    },
+    "decision": {
+      "APPROVE": "Approved",
+      "REVISION": "Changes requested",
+      "VERIFY": "Verified",
+      "REJECT": "Needs a fix"
+    },
+    "next": {
+      "default": "We will let you know when something needs your attention.",
+      "creator": {
+        "AWAITING_PAYMENT": "Waiting for the campaign to start. You will be notified.",
+        "IN_PRODUCTION": "Make your draft and send us a link to it.",
+        "DRAFT_SUBMITTED": "The Bluenova team is checking your draft.",
+        "BRAND_REVIEW": "The brand is reviewing your draft.",
+        "REVISION_REQUESTED": "Changes were requested. Read the feedback below and send a new draft.",
+        "APPROVED": "Approved! Post it on Instagram, then send us the link.",
+        "LIVE_SUBMITTED": "The Bluenova team is checking your live post.",
+        "COMPLETED": "Completed. Thank you!",
+        "CANCELLED": "This collaboration was cancelled.",
+        "DISPUTED": "Paused while the Bluenova team looks into a problem."
+      },
+      "brand": {
+        "AWAITING_PAYMENT": "Waiting for the campaign to start.",
+        "IN_PRODUCTION": "The creator is making the draft.",
+        "DRAFT_SUBMITTED": "The Bluenova team is checking the creator's draft before you see it.",
+        "BRAND_REVIEW": "Your turn: review the draft below, then approve it or ask for changes.",
+        "REVISION_REQUESTED": "The creator is making the changes.",
+        "APPROVED": "Approved. The creator will post it and send the live link.",
+        "LIVE_SUBMITTED": "The Bluenova team is checking the live post.",
+        "COMPLETED": "Completed. The live post is below.",
+        "CANCELLED": "This collaboration was cancelled.",
+        "DISPUTED": "Paused while the Bluenova team looks into a problem."
+      }
+    },
+    "amendmentsTitle": "Changes to the agreement",
+    "amendmentFields": {
+      "creatorPayoutPaise": "Payout",
+      "brandPricePaise": "Price",
+      "draftDue": "Draft due",
+      "liveDue": "Live by",
+      "maxRevisions": "Change requests allowed"
+    },
+    "autoApproveBy": "If you don't review it by {{date}}, the draft is approved automatically."
+  },
+  "apply": {
+    "button": "Apply",
+    "title": "Apply to “{{campaign}}”",
+    "send": "Send application",
+    "intro": "The Bluenova team reads every application and picks the best creators for the brand's shortlist.",
+    "pitch": "Why are you a good fit?",
+    "pitchHint": "At least 20 characters: your audience, your style, an idea for this campaign.",
+    "rate": "Your price for this campaign (₹, optional)",
+    "rateHint": "Leave empty to use your rate card.",
+    "mine": "My applications",
+    "withdraw": "Withdraw",
+    "status": {
+      "SUBMITTED": "Applied",
+      "SHORTLISTED": "Shortlisted",
+      "DECLINED": "Not selected",
+      "WITHDRAWN": "Withdrawn"
+    }
+  },
+  "messages": {
+    "title": "Messages",
+    "subtitle": "Talk to the Bluenova team. We reply within one working day.",
+    "new": "New message",
+    "subject": "Subject",
+    "message": "Message",
+    "send": "Send",
+    "closed": "Closed",
+    "you": "You",
+    "team": "Bluenova team",
+    "reopenHint": "This conversation was closed. Sending a message opens it again.",
+    "none": "No messages yet",
+    "noneText": "Questions about a campaign, a payment or your profile? Write to us.",
+    "pick": "Pick a conversation, or start a new one.",
+    "askAboutDeal": "Message the Bluenova team about this"
+  },
+  "dispute": {
+    "button": "Report a problem with this collaboration",
+    "title": "Report a problem",
+    "send": "Send to Bluenova",
+    "intro": "The collaboration pauses and the Bluenova team contacts both sides. Only the team reads what you write.",
+    "reason": "What is the problem?",
+    "description": "Tell us what happened",
+    "descriptionHint": "At least 20 characters. Dates and examples help.",
+    "reasons": {
+      "QUALITY": "Content quality",
+      "DEADLINE": "Missed deadline",
+      "BRIEF_CHANGED": "The brief changed",
+      "COMMUNICATION": "No reply / communication",
+      "PAYMENT": "Payment",
+      "OTHER": "Something else"
+    },
+    "openTitle": "Collaboration paused",
+    "openMine": "You reported a problem. The Bluenova team is looking into it and will contact you.",
+    "openOther": "A problem was reported. The Bluenova team is looking into it and will contact you.",
+    "resolved": {
+      "CONTINUE": "Problem resolved: the collaboration continues",
+      "CANCEL": "Problem resolved: the collaboration was cancelled"
+    }
+  },
+  "rating": {
+    "titleBrand": "How was working with this creator?",
+    "titleCreator": "How was working with this brand?",
+    "private": "Only the Bluenova team sees your rating. It helps us make better matches.",
+    "stars": "Rating",
+    "comment": "Comment (optional)",
+    "send": "Send rating",
+    "thanks": "Thanks! You rated this collaboration {{stars}}/5."
+  },
+  "report": {
+    "campaign": "Report this campaign",
+    "creator": "Report this creator",
+    "send": "Send report",
+    "sent": "Thanks. The Bluenova team will review your report.",
+    "intro": "Tell the Bluenova team what is wrong. We review every report.",
+    "reason": "Reason",
+    "details": "Details",
+    "reasons": {
+      "FAKE": "Fake or misleading",
+      "SPAM": "Spam",
+      "ABUSE": "Abusive behaviour",
+      "FRAUD": "Asks for money / fraud",
+      "INAPPROPRIATE": "Inappropriate content",
+      "OTHER": "Something else"
+    }
+  },
+  "meta": {
+    "home": "Bluenova Creator Hub connects Gujarat's brands with verified Instagram creators. Every collaboration is managed by the Bluenova team.",
+    "forCreators": "Join Bluenova as an Instagram creator: free to join, verified by our team, and matched with brand campaigns in your categories.",
+    "forBrands": "Run Instagram creator campaigns in Gujarat: post your requirement, get a curated shortlist of verified creators, approve content before it goes live.",
+    "how": "How Bluenova works for creators and brands, and what the Bluenova team does at every step of a collaboration.",
+    "pricing": "Free for creators. Brands get a price per shortlisted creator with Bluenova's service fee included.",
+    "faq": "Answers to common questions about joining Bluenova, campaigns, drafts, messages and ratings.",
+    "contact": "Contact the Bluenova Creator Hub team by phone or with the contact form.",
+    "privacy": "How Bluenova Creator Hub collects, uses and protects your personal data.",
+    "terms": "The terms for using Bluenova Creator Hub as a creator or a brand.",
+    "notFound": "This page does not exist.",
+    "creatorArea": "Creator",
+    "brandArea": "Brand"
+  },
+  "howPage": {
+    "title": "How Bluenova works",
+    "intro": "A managed platform: the Bluenova team checks every creator, builds every shortlist and reviews every piece of content.",
+    "cta": "Create your free account",
+    "teamTitle": "What the Bluenova team does",
+    "team1": "Reviews every creator profile and reel before approval.",
+    "team2": "Builds a shortlist of matching, approved creators for each campaign.",
+    "team3": "Checks every draft before the brand sees it, and every live post before the work is completed.",
+    "team4": "Answers questions and handles problems for both sides through Messages.",
+    "team5": "Keeps phone numbers and emails private, so brands and creators never need to share them."
+  },
+  "pricing": {
+    "title": "Simple, clear pricing",
+    "intro": "No subscriptions. Creators never pay. Brands pay per creator, and the price is agreed before work starts.",
+    "ctaContact": "Ask for a quote",
+    "creatorsTitle": "For creators",
+    "creatorsLead": "Free",
+    "creators1": "Joining and the profile review are free.",
+    "creators2": "Every offer shows your payout before you accept it.",
+    "creators3": "You never pay Bluenova anything.",
+    "brandsTitle": "For brands",
+    "brandsLead": "A price per creator",
+    "brands1": "Creating an account and a campaign is free.",
+    "brands2": "Your shortlist shows a price for each creator. Bluenova's service fee is already included.",
+    "brands3": "You only pay for the creators you select and who accept.",
+    "brands4": "Payment is arranged with the Bluenova team before the campaign starts.",
+    "note": "Prices depend on the creator, the deliverables and the campaign. Contact us for a quote."
+  },
+  "faqPage": {
+    "intro": "Short answers about joining, campaigns and collaborations.",
+    "contact": "Contact us",
+    "still": "Still have a question?",
+    "more": [
+      {
+        "q": "How do creators get campaigns?",
+        "a": "Approved creators see open campaigns in their categories under Opportunities and can apply with a short pitch. The Bluenova team decides who goes on the brand's shortlist; the brand then picks from it and the creator receives an offer."
+      },
+      {
+        "q": "Who reviews the content before it goes live?",
+        "a": "The Bluenova team checks every draft first. For brand campaigns the brand then approves it or asks for changes (up to the number of changes agreed for the campaign). The live post is checked by the team before the collaboration is completed."
+      },
+      {
+        "q": "Can I message the other side?",
+        "a": "Brands and creators talk to the Bluenova team, not to each other, through Messages. The team passes on what is needed. This keeps phone numbers and emails private."
+      },
+      {
+        "q": "What if something goes wrong in a collaboration?",
+        "a": "Use \"Report a problem\" on the collaboration page. The collaboration pauses and the Bluenova team talks to both sides before deciding how to continue."
+      },
+      {
+        "q": "Are follower numbers verified?",
+        "a": "Creators enter their own numbers, so they are shown as self-reported. The Bluenova team checks profiles and reels during the review."
+      },
+      {
+        "q": "Do I get email updates?",
+        "a": "Yes, for important updates such as offers, reviews, deadlines and messages from the team. You can turn these emails off in Settings."
+      }
+    ]
+  },
+  "contact": {
+    "title": "Talk to the Bluenova team",
+    "intro": "Questions about joining as a creator or running a campaign? Write to us or call.",
+    "direct": "Call or visit",
+    "formTitle": "Send us a message",
+    "name": "Your name",
+    "phone": "Mobile (optional)",
+    "topic": "I am",
+    "topics": {
+      "BRAND": "A brand / business",
+      "CREATOR": "A creator",
+      "OTHER": "Something else"
+    },
+    "message": "Message",
+    "send": "Send message",
+    "sent": "Thank you! The Bluenova team will reply by email or phone.",
+    "loggedIn": "You're logged in: use Messages to keep the whole conversation in one place."
+  },
+  "profile": {
+    "title": "My profile",
+    "subtitle": "Keep your profile up to date so the team can match you with the right campaigns.",
+    "complete": "Profile completeness",
+    "items": {
+      "bio": "A short bio",
+      "reels3": "3 best reels",
+      "languages": "2 or more content languages",
+      "rates": "Prices for 2+ formats (or barter)",
+      "stats": "Followers and engagement",
+      "details": "Gender and age group",
+      "areas": "Areas you cover"
+    },
+    "about": "About you",
+    "available": "I am available for new campaigns (untick when you are busy: you won't be shortlisted)",
+    "locked": "Locked details",
+    "lockedText": "Your name, Instagram account, city and categories were checked in your review. To change them, message the Bluenova team.",
+    "askTeam": "Ask the team to change these",
+    "save": "Save profile"
+  },
+  "terms": {
+    "boxLabel": "Terms and conditions",
+    "updated": "Last updated {{date}}",
+    "summaryGu": "ટૂંકમાં (Gujarati summary)",
+    "title": {
+      "creator": "Creator terms",
+      "brand": "Brand terms"
+    },
+    "end": "End of the terms. You can now tick the box below.",
+    "scrollHint": "Scroll to the end of the terms to enable the tick box.",
+    "readDone": "You have read the terms.",
+    "openFull": "Open full page",
+    "acceptFirst": "Read the terms below and tick the box to continue.",
+    "googleNotice": "By continuing with Google you agree to the"
   }
 }

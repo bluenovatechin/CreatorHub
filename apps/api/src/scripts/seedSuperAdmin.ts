@@ -3,7 +3,8 @@
  *
  *   npm run seed:superadmin -- --email you@example.com --name "Your Name" [--out ADMIN_SECRET.txt]
  *
- * Generates a strong temporary password and an authenticator key, shown ONCE (or written to --out).
+ * Generates a strong temporary password, an authenticator key and 10 one-time recovery codes (for a lost phone),
+ * shown ONCE (or written to --out).
  * Change the password after first login (Admin → Settings).
  */
 import fs from 'node:fs';
@@ -12,7 +13,7 @@ import { emailSchema } from '@bluenova/shared';
 import { connectDb, disconnectDb } from '../db';
 import { encrypt, randomCode } from '../lib/crypto';
 import { UserModel } from '../models/user';
-import { hashPassword } from '../modules/auth/auth.service';
+import { hashPassword, newRecoveryCodes } from '../modules/auth/auth.service';
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -30,7 +31,7 @@ async function main() {
   // Readable but strong: 4 groups of 4 from an unambiguous alphabet + a digit.
   const password = `${randomCode('abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ', 4)}-${randomCode('abcdefghjkmnpqrstuvwxyz23456789', 4)}-${randomCode('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 4)}-${randomCode('23456789', 4)}`;
   const secret = authenticator.generateSecret(20);
-  await UserModel.findOneAndUpdate(
+  const admin = await UserModel.findOneAndUpdate(
     { email },
     {
       $set: {
@@ -39,10 +40,11 @@ async function main() {
         totpSecret: encrypt(secret), totpEnabled: true,
       },
       $inc: { tokenVersion: 1 },
-      $unset: { totpLastStep: 1 },
+      $unset: { totpLastStep: 1, pendingTotpSecret: 1 },
     },
-    { upsert: true },
+    { upsert: true, new: true },
   );
+  const recoveryCodes = await newRecoveryCodes(String(admin._id));
   const text = [
     'Bluenova admin account',
     '======================',
@@ -53,6 +55,9 @@ async function main() {
     'Authenticator app (Google Authenticator / Microsoft Authenticator):',
     '  tap +  →  "Enter a setup key"  →  paste this key:',
     `  ${secret}`,
+    '',
+    'Recovery codes (each works ONCE if you lose your phone; keep them somewhere safe, e.g. a password manager):',
+    ...recoveryCodes.map((c) => `  ${c}`),
     '',
     'DELETE THIS FILE after you have logged in and added the key to your phone.',
     '',

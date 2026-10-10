@@ -33,6 +33,8 @@ const paymentSchema = new Schema(
 );
 // The same bank reference can't be used for two payments (unless the earlier one was rejected).
 paymentSchema.index({ method: 1, reference: 1 }, { unique: true, partialFilterExpression: { status: { $in: ['SUBMITTED', 'VERIFIED'] } } });
+// At most one payment waiting for finance per campaign (two parallel submissions can't both get in).
+paymentSchema.index({ campaignId: 1 }, { name: 'one_submitted_payment_per_campaign', unique: true, partialFilterExpression: { status: 'SUBMITTED' } });
 
 export type Payment = InferSchemaType<typeof paymentSchema>;
 export type PaymentDoc = HydratedDocument<Payment>;

@@ -13,6 +13,8 @@ export interface Me {
   name: string | null;
   email: string;
   preferredLanguage: 'gu' | 'en';
+  /** Also email important notifications (Settings). */
+  emailNotifications?: boolean;
   creator?: { id: string; status: string; onboardingStep: number; isPartner: boolean; displayName: string | null; introReelDealId: string | null };
   brand?: { id: string; status: string; companyName: string | null };
 }

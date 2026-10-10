@@ -20,7 +20,10 @@
     "menu": "Menu",
     "skip": "Content પર જાઓ",
     "openMenu": "Menu ખોલો",
-    "closeMenu": "Menu બંધ કરો"
+    "closeMenu": "Menu બંધ કરો",
+    "messages": "Messages",
+    "pricing": "કિંમત",
+    "contact": "સંપર્ક"
   },
   "common": {
     "next": "આગળ",
@@ -54,7 +57,11 @@
     "copied": "Copy થયું",
     "showPassword": "Password બતાવો",
     "hidePassword": "Password છુપાવો",
-    "testBanner": "Test version — data ગમે ત્યારે reset થઈ શકે છે."
+    "testBanner": "Test version — data ગમે ત્યારે reset થઈ શકે છે.",
+    "selfReported": "Creator એ આપેલા આંકડા (self-reported); Bluenova team review વખતે તપાસે છે.",
+    "loadMore": "વધુ જુઓ",
+    "typeCity": "શહેરનું નામ લખો…",
+    "noCity": "શહેર ન મળ્યું. બીજી spelling અજમાવો, અથવા \"અન્ય (ગુજરાત)\" પસંદ કરો."
   },
   "lang": {
     "gu": "ગુજરાતી",
@@ -84,7 +91,7 @@
       "toastText": "Diwali campaign · સુરત"
     },
     "stat1": "Categories",
-    "stat2": "ગુજરાતના શહેરો",
+    "stat2": "આવરી લીધેલા શહેરો",
     "stat3": "Profiles અમારી team review કરે છે",
     "stat4": "ભાષાઓ",
     "howEyebrow": "કેવી રીતે કામ કરે છે",
@@ -332,7 +339,8 @@
     "POST": "Post",
     "STORY": "Story",
     "STORY_WITH_LINK": "Link સાથે Story",
-    "CAROUSEL": "Carousel"
+    "CAROUSEL": "Carousel",
+    "COLLAB": "Collab (બંને account પર, બંને સંમત હોય તો)"
   },
   "band": {
     "NANO": "Nano (1k–10k)",
@@ -413,7 +421,9 @@
     "s5Text": "તમારી details ચેક કરો. Review દરમિયાન edit નહીં થઈ શકે.",
     "submit": "Review માટે Submit કરો",
     "changesBanner": "કૃપા કરીને તમારી profile update કરો:",
-    "incomplete": "કેટલાક steps અધૂરા છે. દરેક step ચેક કરો."
+    "incomplete": "કેટલાક steps અધૂરા છે. દરેક step ચેક કરો.",
+    "areas": "જ્યાં તમે reels અને stories બનાવી શકો તે વિસ્તારો",
+    "areasHint": "જ્યાં shoot કરી શકો અથવા પહોંચી શકો તે બધા શહેરો પસંદ કરો. ઘણા પસંદ કરી શકો છો."
   },
   "creatorStatus": {
     "title": "Application status",
@@ -462,8 +472,7 @@
     "c7": "જો તમારા content મુજબ કોઈ creative style હોય તો એ પણ use કરી શકો છો",
     "important": "Important",
     "importantText": "આ reelનો purpose માત્ર announcement નથી. અમે audienceને gradually સમજાવવા માંગીએ છીએ કે Bluenova Creator Hub is a platform connecting brands with creators for collaborations. એટલે તમારી personality અને content style maintain રાખીને reel બનાવવી. ❤️",
-    "posting": "Reel ready થયા પછી અમે તમને posting/collab માટે આગળની details આપીશું.",
-    "uploadSoon": "Draft upload આગામી update માં શરૂ થશે. હાલ પૂરતું, તમારો draft Bluenova team ને WhatsApp પર મોકલો: +91 76002 36644."
+    "posting": "Reel ready થયા પછી અમે તમને posting/collab માટે આગળની details આપીશું."
   },
   "opps": {
     "title": "Opportunities",
@@ -472,7 +481,9 @@
     "markInterested": "મને રસ છે",
     "none": "હાલ કોઈ matching campaign નથી",
     "noneText": "Brands નવા campaigns મૂકશે ત્યારે અહીં દેખાશે.",
-    "notApproved": "Profile approve થયા પછી opportunities ખુલશે."
+    "notApproved": "Profile approve થયા પછી opportunities ખુલશે.",
+    "savedOnly": "ફક્ત મને રસ છે તે",
+    "noneSaved": "હજુ કોઈ saved campaign નથી. Interested mark કરશો તો અહીં દેખાશે."
   },
   "offers": {
     "title": "Offers",
@@ -529,7 +540,9 @@
     "pincode": "PIN code",
     "pincodeHint": "પસંદ કરેલા રાજ્યનો હોવો જોઈએ.",
     "consentBrand": "હું Brand Agreement સ્વીકારું છું, જેમાં Bluenova દ્વારા મળેલા creators સાથે સીધી deal ન કરવાનો સમાવેશ છે",
-    "save": "Save કરો અને આગળ"
+    "save": "Save કરો અને આગળ",
+    "areas": "જ્યાં તમને promotion જોઈએ છે તે વિસ્તારો",
+    "areasHint": "જ્યાં reels અને stories જોઈએ છે તે બધા શહેરો પસંદ કરો. નવા campaigns આ શહેરોથી શરૂ થશે."
   },
   "brandHome": {
     "hello": "સ્વાગત છે, {{name}}",
@@ -594,7 +607,9 @@
     "usageDays": "કેટલા દિવસ?",
     "reviewTitle": "Review અને Submit",
     "submit": "Bluenova ને Submit કરો",
-    "submitted": "Submit થઈ ગયું! અમે તમારી shortlist તૈયાર કરીશું."
+    "submitted": "Submit થઈ ગયું! અમે તમારી shortlist તૈયાર કરીશું.",
+    "confirmTitle": "આ campaign review માટે મોકલવું છે?",
+    "confirmText": "Bluenova team તેને review કરીને તમારો shortlist બનાવશે. મોકલ્યા પછી campaign edit નહીં કરી શકો (cancel કરી શકો છો)."
   },
   "campaign": {
     "details": "Campaign details",
@@ -613,7 +628,10 @@
     "paymentDue": "Creators એ accept કર્યું છે. Campaign શરૂ કરવા Bluenova ને pay કરો.",
     "payNow": "Pay કરો અને campaign શરૂ કરો",
     "paymentPending": "તમારું payment અમારી finance team verify કરી રહી છે.",
-    "awaitingStart": "Creators એ accept કર્યું છે! Campaign confirm કરી શરૂ કરવા Bluenova team તમારો સંપર્ક કરશે."
+    "awaitingStart": "Creators એ accept કર્યું છે! Campaign confirm કરી શરૂ કરવા Bluenova team તમારો સંપર્ક કરશે.",
+    "confirmSendTitle": "{{n}} creator(s) ને offers મોકલવી છે?",
+    "confirmSendText": "પસંદ કરેલા creators ને તરત offer મળશે. આ પસંદગીનો કુલ: {{amount}}. આ પાછું ફેરવી શકાતું નથી.",
+    "copy": "Campaign copy કરો"
   },
   "payment": {
     "title": "Payment",
@@ -685,7 +703,26 @@
     "brand_payment_verified": "“{{campaign}}” નું payment verify થયું. Creators એ કામ શરૂ કર્યું.",
     "brand_payment_rejected": "“{{campaign}}” નું payment verify ન થઈ શક્યું. ચેક કરીને ફરી submit કરો.",
     "default": "તમારા માટે એક update છે.",
-    "brand_campaign_started": "તમારું campaign “{{campaign}}” શરૂ થયું. Creators હવે content બનાવી રહ્યા છે."
+    "brand_campaign_started": "તમારું campaign “{{campaign}}” શરૂ થયું. Creators હવે content બનાવી રહ્યા છે.",
+    "creator_draft_approved": "“{{campaign}}” માટેનો તમારો draft approve થયો. Post કરો અને live link મોકલો.",
+    "creator_revision_requested": "“{{campaign}}” માટે ફેરફાર માંગવામાં આવ્યા છે.",
+    "creator_live_rejected": "“{{campaign}}” ની તમારી live post માં સુધારો જરૂરી છે.",
+    "creator_deal_completed": "“{{campaign}}” પૂર્ણ થયું. આભાર!",
+    "creator_application_shortlisted": "તમે “{{campaign}}” માટે shortlist થયા છો.",
+    "creator_application_declined": "“{{campaign}}” માટેની તમારી application આ વખતે પસંદ ન થઈ.",
+    "brand_draft_ready": "“{{campaign}}” માટે {{creator}} નો draft તમારા review માટે તૈયાર છે.",
+    "brand_deal_completed": "{{creator}} એ “{{campaign}}” માટેની post પૂર્ણ કરી.",
+    "brand_campaign_completed": "તમારું campaign “{{campaign}}” પૂર્ણ થયું.",
+    "message_from_team": "Bluenova team તરફથી નવો message: {{subject}}",
+    "deal_disputed": "“{{campaign}}” નું એક collab અટકાવ્યું છે; Bluenova team સમસ્યા જોઈ રહી છે.",
+    "dispute_resolved": "“{{campaign}}” ની સમસ્યા ઉકેલાઈ. વિગત માટે collab ખોલો.",
+    "report_reviewed": "Bluenova team એ તમારો report તપાસ્યો. આભાર.",
+    "creator_draft_due_soon": "યાદ અપાવીએ: “{{campaign}}” નો draft {{date}} સુધીમાં આપવાનો છે.",
+    "creator_live_due_soon": "યાદ અપાવીએ: “{{campaign}}” ની post {{date}} સુધીમાં live કરવાની છે.",
+    "creator_deadline_missed": "“{{campaign}}” ની deadline પૂરી થઈ ગઈ છે. તમારું કામ મોકલો અથવા Bluenova team ને message કરો.",
+    "brand_draft_auto_approved": "Review નો સમય પૂરો થતાં “{{campaign}}” માટે {{creator}} નો draft આપમેળે approve થયો.",
+    "deal_amended": "Bluenova team એ “{{campaign}}” ના collab ની શરતો બદલી છે.",
+    "deal_cancelled": "Bluenova team એ “{{campaign}}” નું એક collab cancel કર્યું."
   },
   "settings": {
     "title": "Settings",
@@ -698,7 +735,12 @@
     "passwordChanged": "Password બદલાઈ ગયો. બીજા devices log out થઈ ગયા છે.",
     "security": "Security",
     "logoutAll": "બધા devices માંથી log out",
-    "logoutAllText": "Phone ખોવાઈ ગયો હોય અથવા બીજા કોઈ પાસે access હોવાની શંકા હોય ત્યારે વાપરો."
+    "logoutAllText": "Phone ખોવાઈ ગયો હોય અથવા બીજા કોઈ પાસે access હોવાની શંકા હોય ત્યારે વાપરો.",
+    "emailTitle": "Email notifications",
+    "emailText": "મહત્વની updates વિશે email પણ મોકલો: offers, reviews, deadlines અને Bluenova team ના messages. Login codes અને password emails હંમેશા મોકલાય છે.",
+    "emailOn": "Emails ચાલુ",
+    "emailOff": "Emails બંધ",
+    "saved": "Save થયું."
   },
   "errors": {
     "generic": "કંઈક ખોટું થયું. ફરી પ્રયાસ કરો.",
@@ -809,7 +851,22 @@
     "googleNotVerified": "આ Google account નું email verify થયેલું નથી.",
     "googleNotConfigured": "Google sign-in હજુ ઉપલબ્ધ નથી.",
     "googleTeamAccount": "આ Google account Bluenova team (admin) નું account છે. Team members admin panel માં log in કરે છે. Website અજમાવવા બીજું Google account અથવા email વાપરો.",
-    "googleCancelled": "Google sign-in રદ થયું. ફરી પ્રયાસ કરો અથવા તમારું email વાપરો."
+    "googleCancelled": "Google sign-in રદ થયું. ફરી પ્રયાસ કરો અથવા તમારું email વાપરો.",
+    "alreadyApplied": "તમે આ campaign માટે પહેલેથી apply કર્યું છે.",
+    "alreadyRated": "તમે આ collab ને પહેલેથી rating આપ્યું છે.",
+    "alreadyReported": "તમે આ પહેલેથી report કર્યું છે. Team તપાસ કરી રહી છે.",
+    "dealDisputed": "Bluenova team સમસ્યા જોઈ રહી છે ત્યાં સુધી આ collab અટકાવ્યું છે.",
+    "idempotencyKey": "કંઈક ખોટું થયું. Page refresh કરીને ફરી પ્રયાસ કરો.",
+    "idempotencyMismatch": "મોકલતી વખતે કંઈક બદલાયું. Page refresh કરીને ફરી પ્રયાસ કરો.",
+    "invalidJson": "Request વાંચી શકાઈ નહીં. Page refresh કરીને ફરી પ્રયાસ કરો.",
+    "rateAfterCompletion": "Collab પૂર્ણ થયા પછી rating આપી શકાય છે.",
+    "reasonRequired": "ટૂંકી note લખો (ઓછામાં ઓછા 3 અક્ષર).",
+    "requestInProgress": "તમારી છેલ્લી request પર હજુ કામ ચાલુ છે. થોડી રાહ જુઓ.",
+    "revisionLimit": "આ collab માટે હવે ફેરફાર વિનંતી બાકી નથી. હજુ કંઈ ખોટું હોય તો Bluenova team ને message કરો.",
+    "stars": "1 થી 5 stars પસંદ કરો.",
+    "invalidInput": "મોકલેલી કેટલીક માહિતી માન્ય નથી. Page refresh કરીને ફરી પ્રયાસ કરો.",
+    "nothingToChange": "કંઈ બદલાયું નથી.",
+    "liveBeforeDraft": "Live તારીખ draft ની તારીખ પછીની હોવી જોઈએ."
   },
   "footer": {
     "tagline": "Brands અને creators વચ્ચે collaboration માટેનું platform.",
@@ -831,5 +888,281 @@
     "summary": "ટૂંકમાં",
     "contents": "અનુક્રમણિકા",
     "questions": "પ્રશ્નો? +91 76002 36644 પર call કરો અથવા bluenovatech.in જુઓ."
+  },
+  "work": {
+    "yourTurn": "હવે તમારો વારો",
+    "history": "અત્યાર સુધી મોકલેલું કામ",
+    "none": "હજુ કંઈ મોકલ્યું નથી.",
+    "draft": "Draft",
+    "live": "Live post",
+    "draftUrl": "તમારા draft ની link",
+    "draftHint": "Google Drive, Dropbox અથવા unlisted video link. Link ધરાવતું કોઈ પણ ખોલી શકે એ check કરો.",
+    "liveUrl": "તમારી live Instagram post ની link",
+    "liveHint": "Instagram પર: ⋯ → Copy link. Reel/post public હોવી જોઈએ.",
+    "note": "Note (જરૂરી નથી)",
+    "sendDraft": "Draft મોકલો",
+    "sendLive": "Live link મોકલો",
+    "approve": "Draft approve કરો",
+    "askChanges": "ફેરફાર માંગો",
+    "changesNote": "શું બદલવું છે?",
+    "sendChanges": "ફેરફારની વિનંતી મોકલો",
+    "revisionsLeft": "બાકી ફેરફાર વિનંતીઓ: {{count}}",
+    "by": {
+      "team": "Bluenova team",
+      "brand": "Brand",
+      "system": "આપમેળે"
+    },
+    "decision": {
+      "APPROVE": "Approve થયું",
+      "REVISION": "ફેરફાર માંગ્યા",
+      "VERIFY": "Verify થયું",
+      "REJECT": "સુધારો જરૂરી"
+    },
+    "next": {
+      "default": "તમારું ધ્યાન જરૂરી હશે ત્યારે અમે જણાવીશું.",
+      "creator": {
+        "AWAITING_PAYMENT": "Campaign શરૂ થવાની રાહ. તમને જાણ કરવામાં આવશે.",
+        "IN_PRODUCTION": "તમારો draft બનાવો અને તેની link અમને મોકલો.",
+        "DRAFT_SUBMITTED": "Bluenova team તમારો draft check કરી રહી છે.",
+        "BRAND_REVIEW": "Brand તમારો draft જોઈ રહી છે.",
+        "REVISION_REQUESTED": "ફેરફાર માંગવામાં આવ્યા છે. નીચેનો feedback વાંચો અને નવો draft મોકલો.",
+        "APPROVED": "Approve થયું! Instagram પર post કરો અને link મોકલો.",
+        "LIVE_SUBMITTED": "Bluenova team તમારી live post check કરી રહી છે.",
+        "COMPLETED": "પૂર્ણ. આભાર!",
+        "CANCELLED": "આ collab cancel થયું છે.",
+        "DISPUTED": "Bluenova team સમસ્યા જોઈ રહી છે ત્યાં સુધી collab અટકાવ્યું છે."
+      },
+      "brand": {
+        "AWAITING_PAYMENT": "Campaign શરૂ થવાની રાહ.",
+        "IN_PRODUCTION": "Creator draft બનાવી રહ્યા છે.",
+        "DRAFT_SUBMITTED": "તમે જુઓ તે પહેલાં Bluenova team creator નો draft check કરી રહી છે.",
+        "BRAND_REVIEW": "હવે તમારો વારો: નીચેનો draft જુઓ, પછી approve કરો અથવા ફેરફાર માંગો.",
+        "REVISION_REQUESTED": "Creator ફેરફાર કરી રહ્યા છે.",
+        "APPROVED": "Approve થયું. Creator post કરીને live link મોકલશે.",
+        "LIVE_SUBMITTED": "Bluenova team live post check કરી રહી છે.",
+        "COMPLETED": "પૂર્ણ. Live post નીચે છે.",
+        "CANCELLED": "આ collab cancel થયું છે.",
+        "DISPUTED": "Bluenova team સમસ્યા જોઈ રહી છે ત્યાં સુધી collab અટકાવ્યું છે."
+      }
+    },
+    "amendmentsTitle": "કરારમાં ફેરફાર",
+    "amendmentFields": {
+      "creatorPayoutPaise": "Payout",
+      "brandPricePaise": "કિંમત",
+      "draftDue": "Draft ની તારીખ",
+      "liveDue": "Live તારીખ",
+      "maxRevisions": "મંજૂર ફેરફાર વિનંતીઓ"
+    },
+    "autoApproveBy": "{{date}} સુધીમાં review નહીં કરો તો draft આપમેળે approve થશે."
+  },
+  "apply": {
+    "button": "Apply કરો",
+    "title": "“{{campaign}}” માટે apply કરો",
+    "send": "Application મોકલો",
+    "intro": "Bluenova team દરેક application વાંચે છે અને brand ના shortlist માટે શ્રેષ્ઠ creators પસંદ કરે છે.",
+    "pitch": "તમે આ campaign માટે કેમ યોગ્ય છો?",
+    "pitchHint": "ઓછામાં ઓછા 20 અક્ષર: તમારા followers, તમારી style, આ campaign માટે idea.",
+    "rate": "આ campaign માટે તમારી કિંમત (₹, જરૂરી નથી)",
+    "rateHint": "ખાલી રાખશો તો તમારું rate card વપરાશે.",
+    "mine": "મારી applications",
+    "withdraw": "પાછી ખેંચો",
+    "status": {
+      "SUBMITTED": "Apply કર્યું",
+      "SHORTLISTED": "Shortlist થયા",
+      "DECLINED": "પસંદ ન થયા",
+      "WITHDRAWN": "પાછી ખેંચી"
+    }
+  },
+  "messages": {
+    "title": "Messages",
+    "subtitle": "Bluenova team સાથે વાત કરો. અમે એક working day માં જવાબ આપીએ છીએ.",
+    "new": "નવો message",
+    "subject": "વિષય",
+    "message": "Message",
+    "send": "મોકલો",
+    "closed": "બંધ",
+    "you": "તમે",
+    "team": "Bluenova team",
+    "reopenHint": "આ વાતચીત બંધ થઈ હતી. Message મોકલશો તો ફરી ખુલશે.",
+    "none": "હજુ કોઈ message નથી",
+    "noneText": "Campaign, payment કે profile વિશે પ્રશ્ન છે? અમને લખો.",
+    "pick": "કોઈ વાતચીત પસંદ કરો, અથવા નવી શરૂ કરો.",
+    "askAboutDeal": "આ વિશે Bluenova team ને message કરો"
+  },
+  "dispute": {
+    "button": "આ collab માં સમસ્યા જણાવો",
+    "title": "સમસ્યા જણાવો",
+    "send": "Bluenova ને મોકલો",
+    "intro": "Collab અટકશે અને Bluenova team બંને પક્ષનો સંપર્ક કરશે. તમે લખો છો તે ફક્ત team વાંચે છે.",
+    "reason": "સમસ્યા શું છે?",
+    "description": "શું થયું તે જણાવો",
+    "descriptionHint": "ઓછામાં ઓછા 20 અક્ષર. તારીખો અને ઉદાહરણો મદદરૂપ થાય છે.",
+    "reasons": {
+      "QUALITY": "Content ની quality",
+      "DEADLINE": "Deadline ચૂકી",
+      "BRIEF_CHANGED": "Brief બદલાયું",
+      "COMMUNICATION": "જવાબ નથી / વાતચીત",
+      "PAYMENT": "Payment",
+      "OTHER": "બીજું કંઈક"
+    },
+    "openTitle": "Collab અટકાવ્યું છે",
+    "openMine": "તમે સમસ્યા જણાવી છે. Bluenova team તપાસ કરી રહી છે અને તમારો સંપર્ક કરશે.",
+    "openOther": "સમસ્યા જણાવવામાં આવી છે. Bluenova team તપાસ કરી રહી છે અને તમારો સંપર્ક કરશે.",
+    "resolved": {
+      "CONTINUE": "સમસ્યા ઉકેલાઈ: collab ચાલુ રહેશે",
+      "CANCEL": "સમસ્યા ઉકેલાઈ: collab cancel થયું"
+    }
+  },
+  "rating": {
+    "titleBrand": "આ creator સાથે કામ કેવું રહ્યું?",
+    "titleCreator": "આ brand સાથે કામ કેવું રહ્યું?",
+    "private": "તમારું rating ફક્ત Bluenova team જુએ છે. તેનાથી અમે વધુ સારા matches બનાવીએ છીએ.",
+    "stars": "Rating",
+    "comment": "Comment (જરૂરી નથી)",
+    "send": "Rating મોકલો",
+    "thanks": "આભાર! તમે આ collab ને {{stars}}/5 rating આપ્યું."
+  },
+  "report": {
+    "campaign": "આ campaign report કરો",
+    "creator": "આ creator report કરો",
+    "send": "Report મોકલો",
+    "sent": "આભાર. Bluenova team તમારો report તપાસશે.",
+    "intro": "શું ખોટું છે તે Bluenova team ને જણાવો. અમે દરેક report તપાસીએ છીએ.",
+    "reason": "કારણ",
+    "details": "વિગત",
+    "reasons": {
+      "FAKE": "નકલી કે ગેરમાર્ગે દોરનાર",
+      "SPAM": "Spam",
+      "ABUSE": "અપમાનજનક વર્તન",
+      "FRAUD": "પૈસા માંગે છે / છેતરપિંડી",
+      "INAPPROPRIATE": "અયોગ્ય content",
+      "OTHER": "બીજું કંઈક"
+    }
+  },
+  "meta": {
+    "home": "Bluenova Creator Hub ગુજરાતની brands ને verified Instagram creators સાથે જોડે છે. દરેક collab Bluenova team સંભાળે છે.",
+    "forCreators": "Instagram creator તરીકે Bluenova માં જોડાઓ: મફત, અમારી team દ્વારા verify, અને તમારી categories ના campaigns સાથે match.",
+    "forBrands": "ગુજરાતમાં Instagram creator campaigns ચલાવો: requirement મૂકો, verified creators નો shortlist મેળવો, live થતાં પહેલાં content approve કરો.",
+    "how": "Creators અને brands માટે Bluenova કેવી રીતે કામ કરે છે, અને દરેક step પર Bluenova team શું કરે છે.",
+    "pricing": "Creators માટે મફત. Brands ને દરેક shortlisted creator માટે કિંમત મળે છે, Bluenova ની service fee સાથે.",
+    "faq": "Bluenova માં જોડાવા, campaigns, drafts, messages અને ratings વિશેના સામાન્ય પ્રશ્નોના જવાબ.",
+    "contact": "Bluenova Creator Hub team નો phone અથવા contact form થી સંપર્ક કરો.",
+    "privacy": "Bluenova Creator Hub તમારી personal માહિતી કેવી રીતે ભેગી કરે, વાપરે અને સુરક્ષિત રાખે છે.",
+    "terms": "Creator કે brand તરીકે Bluenova Creator Hub વાપરવાની શરતો.",
+    "notFound": "આ page અસ્તિત્વમાં નથી.",
+    "creatorArea": "Creator",
+    "brandArea": "Brand"
+  },
+  "howPage": {
+    "title": "Bluenova કેવી રીતે કામ કરે છે",
+    "intro": "Managed platform: Bluenova team દરેક creator ને તપાસે છે, દરેક shortlist બનાવે છે અને દરેક content review કરે છે.",
+    "cta": "મફત account બનાવો",
+    "teamTitle": "Bluenova team શું કરે છે",
+    "team1": "Approve કરતાં પહેલાં દરેક creator profile અને reel review કરે છે.",
+    "team2": "દરેક campaign માટે match થતા, approved creators નો shortlist બનાવે છે.",
+    "team3": "Brand જુએ તે પહેલાં દરેક draft, અને કામ પૂરું થાય તે પહેલાં દરેક live post check કરે છે.",
+    "team4": "Messages દ્વારા બંને પક્ષના પ્રશ્નો અને સમસ્યાઓ સંભાળે છે.",
+    "team5": "Phone numbers અને emails private રાખે છે, જેથી brands અને creators ને શેર કરવાની જરૂર ન પડે."
+  },
+  "pricing": {
+    "title": "સરળ અને સ્પષ્ટ કિંમત",
+    "intro": "કોઈ subscription નહીં. Creators ક્યારેય ચૂકવતા નથી. Brands દરેક creator માટે ચૂકવે છે, અને કિંમત કામ શરૂ થાય તે પહેલાં નક્કી થાય છે.",
+    "ctaContact": "Quote માંગો",
+    "creatorsTitle": "Creators માટે",
+    "creatorsLead": "મફત",
+    "creators1": "જોડાવું અને profile review મફત છે.",
+    "creators2": "દરેક offer માં સ્વીકારતાં પહેલાં તમારું payout દેખાય છે.",
+    "creators3": "તમે Bluenova ને કંઈ ચૂકવતા નથી.",
+    "brandsTitle": "Brands માટે",
+    "brandsLead": "દરેક creator માટે કિંમત",
+    "brands1": "Account અને campaign બનાવવું મફત છે.",
+    "brands2": "તમારા shortlist માં દરેક creator ની કિંમત દેખાય છે. Bluenova ની service fee તેમાં સામેલ છે.",
+    "brands3": "તમે પસંદ કરો અને જે સ્વીકારે તે creators માટે જ ચૂકવો છો.",
+    "brands4": "Campaign શરૂ થાય તે પહેલાં payment Bluenova team સાથે નક્કી થાય છે.",
+    "note": "કિંમત creator, deliverables અને campaign પર આધાર રાખે છે. Quote માટે અમારો સંપર્ક કરો."
+  },
+  "faqPage": {
+    "intro": "જોડાવા, campaigns અને collabs વિશે ટૂંકા જવાબ.",
+    "contact": "અમારો સંપર્ક કરો",
+    "still": "હજુ પ્રશ્ન છે?",
+    "more": [
+      {
+        "q": "Creators ને campaigns કેવી રીતે મળે છે?",
+        "a": "Approved creators ને Opportunities માં તેમની categories ના open campaigns દેખાય છે અને ટૂંકા pitch સાથે apply કરી શકે છે. Brand ના shortlist માં કોણ જશે તે Bluenova team નક્કી કરે છે; પછી brand પસંદ કરે છે અને creator ને offer મળે છે."
+      },
+      {
+        "q": "Live થતાં પહેલાં content કોણ review કરે છે?",
+        "a": "Bluenova team પહેલા દરેક draft check કરે છે. Brand campaigns માં પછી brand approve કરે છે અથવા ફેરફાર માંગે છે (campaign માટે નક્કી થયેલી સંખ્યા સુધી). Collab પૂર્ણ થાય તે પહેલાં team live post check કરે છે."
+      },
+      {
+        "q": "શું હું સામેના પક્ષને message કરી શકું?",
+        "a": "Brands અને creators એકબીજાને નહીં, Messages દ્વારા Bluenova team સાથે વાત કરે છે. Team જરૂરી વાત પહોંચાડે છે. તેથી phone numbers અને emails private રહે છે."
+      },
+      {
+        "q": "Collab માં કંઈ ખોટું થાય તો?",
+        "a": "Collab page પર \"સમસ્યા જણાવો\" વાપરો. Collab અટકે છે અને Bluenova team બંને પક્ષ સાથે વાત કરીને આગળ શું કરવું તે નક્કી કરે છે."
+      },
+      {
+        "q": "શું followers ના આંકડા verify થાય છે?",
+        "a": "Creators પોતાના આંકડા લખે છે, તેથી તે self-reported તરીકે દેખાય છે. Bluenova team review વખતે profiles અને reels તપાસે છે."
+      },
+      {
+        "q": "શું મને email updates મળશે?",
+        "a": "હા, offers, reviews, deadlines અને team ના messages જેવી મહત્વની updates માટે. Settings માં આ emails બંધ કરી શકો છો."
+      }
+    ]
+  },
+  "contact": {
+    "title": "Bluenova team સાથે વાત કરો",
+    "intro": "Creator તરીકે જોડાવા કે campaign ચલાવવા વિશે પ્રશ્ન છે? લખો અથવા call કરો.",
+    "direct": "Call કરો અથવા મુલાકાત લો",
+    "formTitle": "અમને message મોકલો",
+    "name": "તમારું નામ",
+    "phone": "Mobile (જરૂરી નથી)",
+    "topic": "હું છું",
+    "topics": {
+      "BRAND": "Brand / business",
+      "CREATOR": "Creator",
+      "OTHER": "બીજું કંઈક"
+    },
+    "message": "Message",
+    "send": "Message મોકલો",
+    "sent": "આભાર! Bluenova team email અથવા phone થી જવાબ આપશે.",
+    "loggedIn": "તમે logged in છો: આખી વાતચીત એક જગ્યાએ રાખવા Messages વાપરો."
+  },
+  "profile": {
+    "title": "મારી profile",
+    "subtitle": "Profile up to date રાખો જેથી team તમને યોગ્ય campaigns સાથે match કરી શકે.",
+    "complete": "Profile કેટલી પૂર્ણ છે",
+    "items": {
+      "bio": "ટૂંકો bio",
+      "reels3": "3 શ્રેષ્ઠ reels",
+      "languages": "2 કે વધુ content ભાષાઓ",
+      "rates": "2+ formats ની કિંમત (અથવા barter)",
+      "stats": "Followers અને engagement",
+      "details": "Gender અને age group",
+      "areas": "તમે આવરી લો છો તે વિસ્તારો"
+    },
+    "about": "તમારા વિશે",
+    "available": "હું નવા campaigns માટે ઉપલબ્ધ છું (વ્યસ્ત હો ત્યારે untick કરો: shortlist નહીં થાઓ)",
+    "locked": "Lock કરેલી વિગતો",
+    "lockedText": "તમારું નામ, Instagram account, શહેર અને categories review માં તપાસાયા છે. બદલવા માટે Bluenova team ને message કરો.",
+    "askTeam": "આ બદલવા team ને કહો",
+    "save": "Profile save કરો"
+  },
+  "terms": {
+    "boxLabel": "નિયમો અને શરતો",
+    "updated": "છેલ્લો ફેરફાર {{date}}",
+    "summaryGu": "ટૂંકમાં",
+    "title": {
+      "creator": "Creator ની શરતો",
+      "brand": "Brand ની શરતો"
+    },
+    "end": "શરતો પૂરી. હવે નીચેનું box tick કરી શકો છો.",
+    "scrollHint": "Tick box ચાલુ કરવા શરતો છેલ્લે સુધી scroll કરો.",
+    "readDone": "તમે શરતો વાંચી લીધી છે.",
+    "openFull": "પૂરું page ખોલો",
+    "acceptFirst": "આગળ વધવા નીચેની શરતો વાંચો અને box tick કરો.",
+    "googleNotice": "Google સાથે આગળ વધીને તમે સંમત થાઓ છો:"
   }
 }

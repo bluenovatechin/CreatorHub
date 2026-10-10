@@ -1,0 +1,9 @@
+export { adminRouter } from './admin.routes';
+export { adminUsersRouter } from './users.routes';
+export { adminSecurityRouter } from './security.routes';
+export { adminDealsRouter } from './deals.routes';
+export { adminApplicationsRouter } from './applications.routes';
+export { adminMessagesRouter } from './messages.routes';
+export { adminTrustRouter } from './trust.routes';
+export { adminEmailsRouter } from './emails.routes';
+export { adminEnquiriesRouter } from './enquiries.routes';

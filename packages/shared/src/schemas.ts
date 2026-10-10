@@ -4,8 +4,8 @@
  */
 import { z } from 'zod';
 import {
-  AGE_GROUPS, CAMPAIGN_GOALS, COLLAB_TYPES, CREATOR_DECISIONS, DELIVERABLE_TYPES, FOLLOWER_BANDS,
-  GENDERS, LANGUAGES, OFFER_DECLINE_REASONS, REVIEW_REASON_CODES, UI_LANGUAGES,
+  AGE_GROUPS, CAMPAIGN_GOALS, COLLAB_TYPES, CREATOR_DECISIONS, DELIVERABLE_TYPES, DISPUTE_REASONS, FOLLOWER_BANDS,
+  GENDERS, LANGUAGES, OFFER_DECLINE_REASONS, REPORT_REASONS, REVIEW_REASON_CODES, UI_LANGUAGES,
 } from './enums';
 import { CATEGORY_KEYS, CITY_KEYS, STATE_CODES } from './catalog';
 import { todayIST } from './utils';
@@ -16,6 +16,7 @@ import {
 
 /* ---------- building blocks ---------- */
 
+// eslint-disable-next-line no-control-regex -- matching control characters is the point: they are rejected
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 
 /** Plain text: trimmed, no control characters. Gujarati and emoji allowed. */
@@ -131,9 +132,22 @@ export const changePasswordSchema = z.object({
 export const roleSelectSchema = z.object({ role: z.enum(['creator', 'brand'], { errorMap: () => ({ message: 'errors.roleRequired' }) }) });
 export const adminTotpSchema = z.object({ mfaToken: z.string().min(20).max(2000), code: totpCodeSchema });
 export const adminLoginSchema = loginSchema;
-export const preferencesSchema = z.object({ preferredLanguage: z.enum(UI_LANGUAGES) });
+/** A one-time recovery code (admins who lost their authenticator phone). Case, spaces and dashes are ignored. */
+export const recoveryCodeSchema = z.string().trim().min(12, 'errors.invalidRecoveryCode').max(24, 'errors.invalidRecoveryCode');
+export const adminRecoverySchema = z.object({ mfaToken: z.string().min(20).max(2000), code: recoveryCodeSchema });
+/** Security changes on the admin's own account ask for the current password again. */
+export const confirmPasswordSchema = z.object({ currentPassword: z.string().min(1, 'errors.zod.invalid_type').max(128) });
+export const totpConfirmSchema = z.object({ code: totpCodeSchema });
+/** Settings: language and whether important notifications are also emailed (at least one must be sent). */
+export const preferencesSchema = z.object({
+  preferredLanguage: z.enum(UI_LANGUAGES).optional(),
+  emailNotifications: z.boolean().optional(),
+}).refine((v) => v.preferredLanguage !== undefined || v.emailNotifications !== undefined, 'errors.VALIDATION_ERROR');
 
 /* ---------- creator onboarding ---------- */
+
+/** Areas a creator can make reels/stories in, or a brand wants promotions in (several cities; can be empty). */
+export const areasSchema = uniqueArray(z.enum(CITY_KEYS), 0, 30).default([]);
 
 export const creatorStep1ProfileSchema = z.object({
   fullName: personName(60),
@@ -141,6 +155,7 @@ export const creatorStep1ProfileSchema = z.object({
   phone: mobileSchema,
   igHandle: instagramHandle,
   city: z.enum(CITY_KEYS),
+  areas: areasSchema,
   languages: uniqueArray(z.enum(LANGUAGES), 1, 3),
   gender: z.enum(GENDERS).optional(),
   ageGroup: z.enum(AGE_GROUPS).optional(),
@@ -161,12 +176,11 @@ export const creatorStep3Schema = z.object({
     .refine((a) => new Set(a).size === a.length, 'errors.duplicates'),
 });
 
+/** Price per format, whole rupees. Only the formats Bluenova offers (Reel, Story, Collab). */
 export const rateCardSchema = z.object({
   REEL: rupees().optional(),
-  POST: rupees().optional(),
   STORY: rupees().optional(),
-  STORY_WITH_LINK: rupees().optional(),
-  CAROUSEL: rupees().optional(),
+  COLLAB: rupees().optional(),
 });
 
 export const creatorStep4Schema = z.object({
@@ -208,6 +222,7 @@ export const brandProfileSchema = z.object({
   gstin: z.union([gstinSchema, z.literal('')]).optional().transform((v) => (v ? v : undefined)),
   industry: z.enum(CATEGORY_KEYS),
   city: z.enum(CITY_KEYS),
+  areas: areasSchema,
   website: z.union([httpsUrl, z.literal('')]).optional().transform((v) => (v ? v : undefined)),
   billingAddress: z.object({
     line1: plainText(3, 120),
@@ -400,3 +415,119 @@ export type SignupInput = z.infer<typeof signupSchema>;
 export type PaymentSubmitInput = z.infer<typeof paymentSubmitSchema>;
 export type PaymentDetailsInput = z.infer<typeof paymentDetailsSchema>;
 export type CreatorDecisionInput = z.infer<typeof creatorDecisionSchema>;
+
+/* ---------- deliverables: draft link → review → live post link → verified ---------- */
+
+/** A review note. Required when asking for changes or rejecting, so the creator knows what to fix. */
+const reviewWithNote = <D extends [string, ...string[]]>(decisions: D, needsNote: D[number]) =>
+  z.object({ decision: z.enum(decisions), note: optionalText(1000) })
+    .refine((v) => v.decision !== needsNote || (v.note?.length ?? 0) >= 3, { path: ['note'], message: 'errors.reasonRequired' });
+
+/** Creator: the draft (any safe https link, e.g. Google Drive or an unlisted video) and an optional note. */
+export const draftSubmitSchema = z.object({ url: httpsUrl, note: optionalText(1000) });
+/** Creator: the published Instagram post/reel. */
+export const liveSubmitSchema = z.object({ url: instagramPostUrl, note: optionalText(1000) });
+/** Team: APPROVE = forward to the brand (brand deals) or approve (intro reel); REVISION = back to the creator. */
+export const teamDraftReviewSchema = reviewWithNote(['APPROVE', 'REVISION'], 'REVISION');
+/** Brand: approve the draft, or ask for changes (limited by the campaign's revision count). */
+export const brandDraftReviewSchema = reviewWithNote(['APPROVE', 'REVISION'], 'REVISION');
+/** Team: the live post is up and correct (VERIFY → completed), or not (REJECT → creator fixes and resubmits). */
+export const liveReviewSchema = reviewWithNote(['VERIFY', 'REJECT'], 'REJECT');
+
+/* ---------- campaign applications (creator → Bluenova team) ---------- */
+
+/** Creator: why they fit this campaign, and optionally the price they'd like (whole rupees). */
+export const applicationSubmitSchema = z.object({
+  pitch: plainText(20, 1000),
+  proposedRate: rupees(1_00_00_000).optional(),
+});
+/** Team: SHORTLIST puts the creator on the brand's shortlist at this payout (and price); DECLINE closes it. */
+export const applicationDecisionSchema = z.discriminatedUnion('decision', [
+  z.object({
+    decision: z.literal('SHORTLIST'),
+    creatorPayout: rupees(1_00_00_000).refine((v) => v > 0, 'errors.zod.too_small'),
+    brandPrice: rupees(1_00_00_000).optional(),
+    note: optionalText(500),
+  }),
+  z.object({ decision: z.literal('DECLINE'), note: optionalText(500) }),
+]).refine((v) => v.decision !== 'SHORTLIST' || v.brandPrice === undefined || v.brandPrice >= v.creatorPayout, {
+  path: ['brandPrice'], message: 'errors.priceBelowPayout',
+});
+export type ApplicationDecisionInput = z.infer<typeof applicationDecisionSchema>;
+
+/* ---------- messages (each creator/brand ↔ the Bluenova team) ---------- */
+
+export const messageBodySchema = z.object({ body: plainText(1, 2000) });
+/** Creator/brand: start a conversation, optionally about one of their own campaigns or deals. */
+export const conversationCreateSchema = z.object({
+  subject: plainText(3, 120),
+  body: plainText(1, 2000),
+  topic: z.object({ type: z.enum(['CAMPAIGN', 'DEAL']), id: objectId }).optional(),
+});
+/** Team: start a conversation with one creator/brand account. */
+export const adminConversationCreateSchema = z.object({ userId: objectId, subject: plainText(3, 120), body: plainText(1, 2000) });
+export const conversationStatusSchema = z.object({ status: z.enum(['OPEN', 'CLOSED']) });
+
+/* ---------- disputes, reports, ratings ---------- */
+
+/** Creator or brand: something is wrong with a running deal. The deal pauses until the team resolves it. */
+export const disputeCreateSchema = z.object({ reason: z.enum(DISPUTE_REASONS), description: plainText(20, 2000) });
+/** Team: CONTINUE returns the deal to where it was; CANCEL ends it. Both sides see the note. */
+export const disputeResolveSchema = z.object({ outcome: z.enum(['CONTINUE', 'CANCEL']), note: plainText(3, 1000) });
+/** Creator reports a campaign; brand reports a creator (only ones they actually deal with). */
+export const reportCreateSchema = z.object({
+  targetType: z.enum(['CAMPAIGN', 'CREATOR']),
+  targetId: objectId,
+  reason: z.enum(REPORT_REASONS),
+  details: plainText(10, 1000),
+});
+export const reportReviewSchema = z.object({ outcome: z.enum(['ACTIONED', 'DISMISSED']), note: optionalText(1000) });
+/** After a completed brand deal, each side rates the other once (team-only for now). */
+export const ratingSchema = z.object({ stars: z.coerce.number().int().min(1, 'errors.stars').max(5, 'errors.stars'), comment: optionalText(500) });
+
+/* ---------- deal amendments and cancellation (team only) ---------- */
+
+/** Change agreed terms after acceptance. At least one field, always a reason; every change is recorded on the deal. */
+export const dealAmendSchema = z.object({
+  reason: plainText(3, 500),
+  creatorPayout: rupees(1_00_00_000).optional(),
+  brandPrice: rupees(1_00_00_000).optional(),
+  draftDue: isoDate.optional(),
+  liveDue: isoDate.optional(),
+  maxRevisions: z.coerce.number().int().min(0).max(5).optional(),
+}).refine((v) => ['creatorPayout', 'brandPrice', 'draftDue', 'liveDue', 'maxRevisions'].some((k) => v[k as keyof typeof v] !== undefined), {
+  path: ['_'], message: 'errors.nothingToChange',
+}).refine((v) => v.brandPrice === undefined || v.creatorPayout === undefined || v.brandPrice >= v.creatorPayout, {
+  path: ['brandPrice'], message: 'errors.priceBelowPayout',
+}).refine((v) => !v.draftDue || !v.liveDue || v.draftDue <= v.liveDue, { path: ['liveDue'], message: 'errors.liveBeforeDraft' });
+export type DealAmendInput = z.infer<typeof dealAmendSchema>;
+export const dealCancelSchema = z.object({ reason: plainText(3, 500) });
+
+/* ---------- public contact form (visitors, no account needed) ---------- */
+
+export const contactSchema = z.object({
+  name: personName(60),
+  email: emailSchema,
+  phone: z.union([mobileSchema, z.literal('')]).optional().transform((v) => (v ? v : undefined)),
+  topic: z.enum(['CREATOR', 'BRAND', 'OTHER']),
+  message: plainText(10, 2000),
+  // Hidden "website" field: real people leave it empty; simple spam bots fill every field.
+  website: z.string().max(200).optional(),
+});
+export type ContactInput = z.infer<typeof contactSchema>;
+
+/* ---------- approved creators: keep the profile up to date ---------- */
+
+/**
+ * What an APPROVED creator may change without a new review: bio, languages, best reels, self-reported stats,
+ * rate card, barter, and whether they're available for new campaigns. Name, Instagram handle, city and categories
+ * stay locked (changing them needs the team: Messages). Same rules as onboarding.
+ */
+export const creatorPartnerUpdateSchema = z.object({
+  bio: optionalText(300),
+  areas: areasSchema,
+  languages: uniqueArray(z.enum(LANGUAGES), 1, 3),
+  reels: creatorStep3Schema.shape.reels,
+  available: z.boolean(),
+}).and(creatorStep4Schema);
+export type CreatorPartnerUpdate = z.infer<typeof creatorPartnerUpdateSchema>;

@@ -1,0 +1,1 @@
+export { ForBrandsPage } from './ForBrandsPage';

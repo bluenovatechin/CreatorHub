@@ -1,32 +1,37 @@
 /**
  * CREATOR ROUTES (website, signed-in creators only): onboarding (4 data steps + submit for review),
- * reapply after rejection, opportunities (campaigns in their categories), offers (accept/decline).
+ * reapply after rejection, opportunities (campaigns in their categories), applications (apply / withdraw; the team
+ * reviews them), offers (accept/decline).
  * Ownership rule: the profile always comes from the login token, never from the URL.
  */
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import {
-  CREATOR_STEP_SCHEMAS, creatorMachine, creatorSubmitSchema, followerBand, objectId, offerDeclineSchema, offerMachine,
+  CREATOR_STEP_SCHEMAS, applicationMachine, applicationSubmitSchema, creatorMachine, creatorPartnerUpdateSchema, creatorSubmitSchema,
+  followerBand, objectId, type CreatorPartnerUpdate,
+  offerDeclineSchema, offerMachine,
   campaignMachine, paiseToRupees, rupeesToPaise,
   type CreatorStep1, type CreatorStep2, type CreatorStep3, type CreatorStep4,
 } from '@bluenova/shared';
 import { authenticate, authorize } from '../../middleware/auth';
 import { rateLimits } from '../../middleware/security';
+import { idempotent } from '../../middleware/idempotency';
 import { validate, zodFields } from '../../middleware/validate';
 import { AppError, invalidState, notFound } from '../../lib/errors';
 import { h, input, ok, withTransaction } from '../../lib/http';
 import { notify, notifyAdmins } from '../../lib/notify';
 import { applyTransition } from '../../lib/transition';
+import { ApplicationModel } from '../../models/application';
 import { BrandProfileModel } from '../../models/brandProfile';
 import { CampaignModel, ShortlistItemModel } from '../../models/campaign';
 import { CreatorProfileModel, type CreatorProfileDoc } from '../../models/creatorProfile';
 import { DealModel, OfferModel } from '../../models/deal';
 import { UserModel } from '../../models/user';
 import { recordConsents } from '../auth/auth.routes';
-import { creatorSelfView, offerCreatorView, opportunityView } from '../serializers';
+import { applicationCreatorView, creatorSelfView, offerCreatorView, opportunityView } from '../serializers';
 
 export const creatorsRouter = Router();
-creatorsRouter.use(['/creators', '/opportunities', '/offers'], authenticate('app'), authorize('creator'), rateLimits.authed);
+creatorsRouter.use(['/creators', '/opportunities', '/offers', '/applications'], authenticate('app'), authorize('creator'), rateLimits.authed);
 
 /** The signed-in creator's own profile. Ownership comes from the token, never from the URL. */
 async function ownProfile(req: Request): Promise<CreatorProfileDoc> {
@@ -53,7 +58,7 @@ creatorsRouter.put('/creators/me/onboarding/:step',
     if (step === 1) {
       const d = parsed.data as CreatorStep1;
       Object.assign(p, {
-        fullName: d.fullName, displayName: d.displayName, phone: d.phone, city: d.city, languages: d.languages,
+        fullName: d.fullName, displayName: d.displayName, phone: d.phone, city: d.city, areas: d.areas, languages: d.languages,
         gender: d.gender, ageGroup: d.ageGroup, bio: d.bio,
       });
       p.set('instagram.handle', d.igHandle);
@@ -88,7 +93,7 @@ creatorsRouter.post('/creators/me/submit', h(async (req, res) => {
   const rate: Record<string, number> = {};
   for (const [k, v] of Object.entries(p.rateCardPaise ?? {})) if (typeof v === 'number') rate[k] = paiseToRupees(v);
   const candidate = {
-    fullName: p.fullName, displayName: p.displayName, phone: p.phone, igHandle: p.instagram?.handle, city: p.city,
+    fullName: p.fullName, displayName: p.displayName, phone: p.phone, igHandle: p.instagram?.handle, city: p.city, areas: p.areas ?? [],
     languages: p.languages, gender: p.gender ?? undefined, ageGroup: p.ageGroup ?? undefined, bio: p.bio ?? undefined,
     categories: p.categories, reels: (p.reels ?? []).map((r) => r.url),
     followers: p.instagram?.followers, avgViews: p.instagram?.avgViews,
@@ -105,6 +110,33 @@ creatorsRouter.post('/creators/me/submit', h(async (req, res) => {
   p.submittedAt = new Date();
   await p.save();
   await notifyAdmins(['reviewer'], 'admin_creator_submitted', { name: p.displayName ?? '' }, `/creators/${p._id}`);
+  ok(res, creatorSelfView(p.toObject()));
+}));
+
+/**
+ * PUT /creators/me/profile: an APPROVED creator keeps their profile current (bio, languages, reels, self-reported
+ * stats, rate card, barter, availability). Identity fields stay locked. Stats stay labelled self-reported.
+ */
+creatorsRouter.put('/creators/me/profile', validate({ body: creatorPartnerUpdateSchema }), h(async (req, res) => {
+  const p = await ownProfile(req);
+  if (p.status !== 'APPROVED') throw invalidState(); // before approval, the onboarding steps are used instead
+  const d = input<CreatorPartnerUpdate>(req);
+  p.bio = d.bio;
+  p.set('areas', d.areas);
+  p.languages = d.languages;
+  p.set('reels', d.reels.map((url) => ({ url, addedAt: p.reels?.find((r) => r.url === url)?.addedAt ?? new Date() })));
+  p.set('instagram.followers', d.followers);
+  p.set('instagram.avgViews', d.avgViews);
+  p.set('instagram.engagementBps', Math.round(d.engagementRate * 100));
+  p.set('instagram.followerBand', followerBand(d.followers));
+  p.set('instagram.statsSource', 'manual');
+  p.set('instagram.statsUpdatedAt', new Date());
+  const rate: Record<string, number> = {};
+  for (const [k, v] of Object.entries(d.rateCard)) if (v !== undefined) rate[k] = rupeesToPaise(v);
+  p.set('rateCardPaise', rate);
+  p.acceptsBarter = d.acceptsBarter;
+  p.set('availability.open', d.available); // not available = left out of new campaign matches
+  await p.save();
   ok(res, creatorSelfView(p.toObject()));
 }));
 
@@ -137,10 +169,57 @@ creatorsRouter.get('/opportunities', h(async (req, res) => {
   }).select('+interestedCreatorIds').sort({ _id: -1 }).limit(50).lean();
   const brands = await BrandProfileModel.find({ _id: { $in: campaigns.map((c) => c.brandId) } }, { companyName: 1 }).lean();
   const names = new Map(brands.map((b) => [String(b._id), b.companyName ?? null]));
+  const applications = await ApplicationModel.find({ creatorId: p._id, campaignId: { $in: campaigns.map((c) => c._id) } }).lean();
+  const applied = new Map(applications.map((a) => [String(a.campaignId), a]));
   ok(res, campaigns.map((c) => opportunityView(
     c, names.get(String(c.brandId)) ?? null,
     (c.interestedCreatorIds ?? []).some((x) => String(x) === String(p._id)),
+    applied.get(String(c._id)) ?? null,
   )));
+}));
+
+/* ---------- applications (reviewed by the Bluenova team; brands never see them) ---------- */
+
+/** Campaigns a creator may apply to: open, not ended, and in one of the creator's categories. */
+const openCampaignFor = (id: string, categories: string[]) =>
+  ({ _id: id, status: { $in: OPEN_CAMPAIGN }, endDate: { $gte: new Date() }, 'filters.categories': { $in: categories } });
+
+creatorsRouter.post('/opportunities/:id/apply',
+  validate({ params: z.object({ id: objectId }), body: applicationSubmitSchema }),
+  h(async (req, res) => {
+    const p = await approvedProfile(req);
+    const { id } = input<{ id: string }>(req, 'params');
+    const { pitch, proposedRate } = input<{ pitch: string; proposedRate?: number }>(req);
+    const campaign = await CampaignModel.findOne(openCampaignFor(id, p.categories), { title: 1 }).lean();
+    if (!campaign) throw notFound();
+    if (await ApplicationModel.exists({ campaignId: campaign._id, creatorId: p._id })) throw new AppError('CONFLICT', 'errors.alreadyApplied');
+    const application = await ApplicationModel.create({
+      campaignId: campaign._id, creatorId: p._id, pitch, proposedRatePaise: proposedRate !== undefined ? rupeesToPaise(proposedRate) : undefined,
+      statusHistory: [{ to: 'SUBMITTED', by: req.auth!.id, at: new Date() }],
+    });
+    // Applying also counts as "interested", so the team sees the creator in both places.
+    await CampaignModel.updateOne({ _id: campaign._id }, { $addToSet: { interestedCreatorIds: p._id } });
+    await notifyAdmins(['campaign_manager'], 'admin_application_received', { creator: p.displayName ?? '', campaign: campaign.title ?? '' }, `/campaigns/${campaign._id}`);
+    ok(res, applicationCreatorView(application.toObject(), campaign.title ?? null), 201);
+  }),
+);
+
+creatorsRouter.get('/applications', h(async (req, res) => {
+  const p = await ownProfile(req);
+  const list = await ApplicationModel.find({ creatorId: p._id }).sort({ _id: -1 }).limit(50).lean();
+  const campaigns = await CampaignModel.find({ _id: { $in: list.map((a) => a.campaignId) } }, { title: 1 }).lean();
+  const titles = new Map(campaigns.map((c) => [String(c._id), c.title ?? null]));
+  ok(res, list.map((a) => applicationCreatorView(a, titles.get(String(a.campaignId)) ?? null)));
+}));
+
+creatorsRouter.post('/applications/:id/withdraw', validate({ params: z.object({ id: objectId }) }), h(async (req, res) => {
+  const p = await ownProfile(req);
+  const a = await ApplicationModel.findOne({ _id: input<{ id: string }>(req, 'params').id, creatorId: p._id }); // 404 if not theirs
+  if (!a) throw notFound();
+  applyTransition(a, applicationMachine, 'WITHDRAWN', 'creator', req.auth!.id);
+  await a.save();
+  const campaign = await CampaignModel.findById(a.campaignId, { title: 1 }).lean();
+  ok(res, applicationCreatorView(a.toObject(), campaign?.title ?? null));
 }));
 
 creatorsRouter.post('/opportunities/:id/interest',
@@ -192,7 +271,7 @@ creatorsRouter.get('/offers/:id', validate({ params: z.object({ id: objectId }) 
   ok(res, await offerView(offer._id));
 }));
 
-creatorsRouter.post('/offers/:id/accept', validate({ params: z.object({ id: objectId }) }), h(async (req, res) => {
+creatorsRouter.post('/offers/:id/accept', idempotent, validate({ params: z.object({ id: objectId }) }), h(async (req, res) => {
   const { p, offer } = await ownOffer(req);
   if (p.status !== 'APPROVED') throw new AppError('FORBIDDEN', 'errors.notApprovedYet');
   if (offer.status !== 'SENT' || offer.expiresAt.getTime() <= Date.now()) throw invalidState();

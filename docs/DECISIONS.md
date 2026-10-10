@@ -124,3 +124,98 @@ Record every deviation from `BLUENOVA_AI_BUILD_PROMPT.md` and every assumption h
 - `sendInBackground()` moved to `providers/email.ts`, and `setPassword()` to `auth.service.ts`, so they can be reused.
 - `validate()` now merges results when it's used twice on one route.
 - More fields are redacted from logs: password hashes, tickets, Google credentials, code and token hashes.
+
+## 2026-10-10: audit fixes (phases 1–4)
+
+### Google sign-in on a never-verified account
+- **Problem:** someone could sign up with another person's email and their own password, never verify it, and wait. When the real owner later used "Continue with Google", the account was linked and marked verified, and the stranger's password then opened it.
+- **Fix:** when Google links to an account whose email was never verified, the API:
+  - removes that password (the owner can set one with "Forgot password");
+  - uses the name from Google;
+  - cancels unused signup codes and tickets;
+  - logs out every other session.
+- Accounts that were already verified keep their password.
+- Test: `auth.test.ts` → "a password set before the email was ever verified stops working…".
+
+### Dependency fixes
+- `npm audit fix` (no `--force`): updated `concurrently` and its `shell-quote` dependency (a critical advisory, dev tool only).
+- **nodemailer 6 → 10** (high advisory). Only used for local Gmail SMTP. Our code needed no changes; the breaking changes (Node 20+, SES transport, error-code names, stricter TLS for remote attachments) don't affect us. `@types/nodemailer` was removed because nodemailer now ships its own types.
+- Left for later, each needing its own phase:
+  - vitest 2 → 5 (dev only)
+  - tailwind 3 → 4 (build-time file matching only)
+  - react-router 6 → 7 (open-redirect advisory, already blocked by `safeRedirect`)
+  - `uuid` inside google-auth-library (only affects callers that pass a buffer; Google's library doesn't)
+
+### Linting and formatting
+- ESLint (flat config, `eslint.config.mjs`) with recommended JS + TypeScript rules and React Hooks rules. `npm run lint` must show **0 errors**; it is now part of "before saying a change is done".
+- React Compiler hints (`static-components`, `set-state-in-effect`, `incompatible-library`) are warnings for now. Fixing them means restructuring pages, so they're fixed page by page.
+- Prettier is configured to match the existing style (`.prettierrc.json`), but existing files were **not** reformatted, to avoid one huge diff. `npm run format:check` shows the difference.
+- Small clean-ups the linter found: unused imports, a dead `|| ctx.defaultError`, starting values that were always overwritten, and explained `eslint-disable` lines where a rule is broken on purpose (control-character regexes).
+
+### Database indexes in production
+- Production connects with `autoIndex: false`, and nothing used to create indexes, so a fresh live database had no unique-email rule and no automatic clean-up of expired tokens.
+- `ensureIndexes()` now runs once at production start-up. It only adds missing indexes and never drops anything. A collection whose data blocks an index (e.g. duplicate emails) is logged by name; the others are still built and the API keeps running.
+- Test: `tests/indexes.test.ts`.
+
+## 2026-10-10: phases 5–10
+
+### Admin recovery codes (phase 5)
+- 10 one-time codes per admin, `XXXX-XXXX-XXXX` from 32 unambiguous characters (60 bits). With that much randomness a plain SHA-256 fingerprint is safe to store, and the login check is one atomic database update (a code can't be used twice).
+- `seed:superadmin` prints them. Settings → Security makes new ones or moves the authenticator to a new phone; both ask for the password again, are audited and emailed.
+- Using a recovery code sends the admin to Settings → Security to set up the new phone.
+
+### Doing important actions once (phase 6)
+- Optional `Idempotency-Key` header on: submit payment, select shortlist, accept offer, start campaign, review payment. Same key + same body → the saved answer is replayed; different body → 409; failures are not saved.
+- The browser makes the key from the page visit plus the request content, so a retry reuses it but a changed request gets a new one.
+- New unique indexes with explicit names (an automatic name clashed with an existing index on payments): `one_deal_per_offer`, `one_submitted_payment_per_campaign`.
+
+### Deliverables (phase 7)
+- Links only (no file uploads): drafts are any safe https link, live posts must be Instagram post/reel links.
+- Brand deals: creator → team (forward or send back) → brand (approve or ask for changes, limited by `maxRevisions`) → creator posts → team verifies → COMPLETED. Intro reels skip the brand.
+- The brand only sees drafts the team forwarded and live posts the team verified. Notes between brand and creator have contact details hidden (`maskContactDetails`).
+- A campaign becomes COMPLETED when no deal is still running and at least one was completed.
+
+### Applications (phase 8): the team reviews them
+- Creators apply with a pitch and optional price; campaign managers shortlist (creates the shortlist item, same price rules) or decline (the creator sees the note). Brands never see applications.
+
+### Messages (phase 9): each side talks to the team only
+- One conversation = one creator/brand + the team. Users see "Bluenova team"; the team sees which colleague replied. Reading a conversation is audited. 40 messages per 10 minutes.
+
+### Disputes, reports, ratings (phase 10)
+- Disputes pause a brand deal. Campaign managers resolve: CONTINUE (back to the exact earlier status) or CANCEL. The deal machine got these exits; because they would also allow the normal work routes to move a disputed deal, the work routes now refuse every action while a deal is DISPUTED (a test caught this).
+- No money moves automatically on CANCEL (there is no payout system yet).
+- Reports: only about things you actually deal with; one open report per target; the reporter is told it was reviewed, not what was done.
+- Ratings: once per side after completion; team-only for now. The profiles' existing `ratingAvg`/`ratingCount` are updated in one atomic pipeline update; `completedDeals` now counts up.
+
+### Translations
+- New test `i18n.test.ts`: en/gu must have the same keys, and every error key the API sends must have a text (website or admin `MESSAGES`). Twelve missing website texts were added (including the older `errors.invalidJson`).
+
+## 2026-10-10: upgrades, email outbox, lifecycle, public pages, cities, terms, formats
+
+### Upgrades
+- vitest 5, React Router 7, Express 5, google-auth-library 10, @vitejs/plugin-react 5, `npm dedupe`. Production dependencies: 0 known vulnerabilities. Left: Tailwind 3 build-time chain (fix needs Tailwind 4) and a low esbuild dev-server item.
+- Express 5: `express-mongo-sanitize` and `hpp` (unmaintained) replaced by `middleware/sanitize.ts`, which **rejects** `$`/`.` keys, very deep JSON and repeated query parameters with 400 `errors.invalidInput`. Route paths can't use regex groups any more.
+- Lesson: running dev servers must be restarted after `npm dedupe` (the admin panel showed a "Cannot find module …vite…" page until restarted; DEPLOYMENT §9).
+
+### Notification emails (outbox)
+- Important notifications are also emailed through an outbox (`models/emailJob.ts`, `jobs/emailOutbox.ts`): one email per notification (unique index), retries for temporary failures (1 min → 2 h, 5 tries), permanent failures recorded, daily cap `EMAIL_DAILY_LIMIT`. People can turn emails off (Settings). Super admins see an Email log.
+- At-least-once: an email can repeat only if the server stops between the provider accepting it and it being marked sent.
+
+### Collaboration lifecycle additions
+- Deadline reminders (48 h before) and missed-deadline notices, each sent once; automatic brand-review approval after `brandReviewAutoApproveDays` (setting existed, now used).
+- Team amendments to agreed terms are recorded on the deal (who, when, why, from → to); the team may cancel unfinished deals (new state-machine exit, campaign managers only).
+
+### Creator, brand, public site
+- Approved creators can update safe profile fields (identity stays locked) and see a completeness meter; stats are labelled self-reported everywhere.
+- Brands: confirmation before sending offers and before submitting a campaign; copy campaign; paged list.
+- Public: How it works, Pricing (no numbers), FAQ, Contact (stored for the team, spam trap, 5/hour); SEO basics; homepage numbers are counted from the catalog; the payment section is hidden while payments are off.
+
+### Cities, areas, terms, formats (owner request)
+- Full Gujarat city list (122 + "Other (Gujarat)", Mumbai, "Other (India)"), searchable pickers (`SearchSelect`, `SearchMultiSelect` in packages/ui) that highlight the typed text and work in English and Gujarati.
+- Creators choose several areas they can make reels/stories in; brands choose several areas for promotions (default cities of new campaigns). Matching counts a creator's areas like their home city.
+- Terms box: full terms (and the privacy policy on signup) in a scrollable box; the tick unlocks only after scrolling to the end. Terms updated (formats, messages/problems/ratings, automatic approval). `POLICY_VERSION` was not changed, so existing users are not asked to accept again; change it if you want everyone to re-accept.
+- Formats: Reel, Story, Collab only. Collab = Instagram Collab post on both accounts, only with both sides' agreement. Older formats kept readable for existing data.
+
+### Testing switches (owner request, 2026-10-10)
+- `ADMIN_TOTP_REQUIRED=false` lets admins log in with the password alone while testing. Default stays `true`. While off: red warning bar in the admin panel, a warning in the server log at start, and an audit entry (`admin.login_without_totp`) for every such login. Password checks, lockouts and rate limits still apply. **Turn it back on before real use.**
+- The admin panel reloads open pages every 15 s (only while the tab is visible) and when you return to the tab, so new user actions show up without pressing refresh. "Viewed" audit entries (conversation, enquiries, user page) are written at most once per 10 minutes per admin and record, so the auto-refresh doesn't flood the audit log.

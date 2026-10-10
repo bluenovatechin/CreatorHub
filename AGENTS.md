@@ -27,9 +27,10 @@ npm run dev             # API + web + admin (needs apps/api/.env with a real Mon
 npm run dev:demo        # same, but an in-memory database with demo data (no setup needed)
 npm test                # all tests (in-memory MongoDB, never sends real email)
 npm run typecheck       # TypeScript for every package
+npm run lint            # ESLint for every package (must show 0 errors)
 npm run build           # production builds
 ```
-**Before saying a change is done:** run `npm run typecheck` and `npm test`. Both must pass.
+**Before saying a change is done:** run `npm run typecheck`, `npm run lint` and `npm test`. All must pass (lint: 0 errors).
 
 ## Non-negotiable rules
 1. **Never print, log, commit or paste secrets.**
@@ -58,7 +59,10 @@ npm run build           # production builds
 ## Where things are (fast lookup)
 - **Every endpoint:** `docs/API.md`. Every user flow with success and failure screens: `docs/FLOWS.md`.
 - **Auth:** `apps/api/src/modules/auth/auth.routes.ts` (thin routes) and `auth.service.ts` (logic).
-- **Admin user management:** `apps/api/src/modules/admin/users.routes.ts` with `apps/admin/src/pages/Users.tsx`.
+- **Admin user management:** `apps/api/src/modules/admin/users.routes.ts` with `apps/admin/src/pages/users/`.
+- **Deal work (drafts → live posts):** `apps/api/src/modules/deals/deals.service.ts`; team queue `modules/admin/deals.routes.ts`.
+- **Applications, messages, disputes/reports/ratings:** `modules/admin/applications.routes.ts`, `modules/messages/`, `modules/trust/` (+ `modules/admin/trust.routes.ts`).
+- **Doing actions once:** `middleware/idempotency.ts` (server) and `useIdempotencyKey()` in `packages/ui` (browser).
 - **Website routes:** `apps/web/src/App.tsx`. "Where does this user go?" is `homePathFor()` / `postLoginPath()` in `apps/web/src/lib/auth.tsx`.
 - **Database collections:** `apps/api/src/models/*`, explained in `docs/DATA_MODELS.md`.
 - **Environment variables:** `apps/api/src/config/env.ts` (validated at startup), explained in `docs/DEPLOYMENT.md`.
@@ -72,6 +76,16 @@ npm run build           # production builds
   - Locally it uses Gmail SMTP (Nodemailer).
   - Render's free plan blocks SMTP ports, so the live site needs `EMAIL_PROVIDER=brevo` (HTTPS API) or `TEST_MODE=true`.
 - Admin accounts are created only with `npm run seed:superadmin`. There's no self-signup for the team.
+- **Managed marketplace (decided 2026-10-10):**
+  - Creators **apply** to campaigns; the **team** reviews applications and shortlists. Brands never see applications.
+  - Creators and brands **never message each other**; each talks to the team only (`/conversations`).
+  - Ratings are **team-only** for now (a creator sees their own average).
+  - Resolving a dispute never moves money automatically; finance settles refunds/payouts outside the website.
+  - **No public campaign list.** Campaigns are visible only to approved, logged-in creators.
+  - **Pricing page shows no numbers.** Payments stay switched off; no payment gateway.
+- **Formats (2026-10-10): Reel, Story and Collab only** (`DELIVERABLE_TYPES`). Collab = one post on both the creator's and the brand's account, only if both agree. Older formats (`LEGACY_DELIVERABLE_TYPES`) stay readable on old records but can't be chosen.
+- **Cities:** `CITIES` in `packages/shared/src/catalog.ts` lists all Gujarat district HQs, municipal corporations and main towns. Never rename/remove a key (stored in the database). Creators and brands also choose several **areas**.
+- **Terms:** signup and the creator/brand agreements use `TermsBox` (apps/web/src/components/TermsBox.tsx): the tick unlocks only after scrolling to the end. On the signup page, "Continue with Google" also waits for the tick.
 
 ## Gotchas
 - **Dev proxy:** the dev servers proxy `/api` to `http://localhost:4000`. To try the deployed API locally, set `API_PROXY_TARGET`.

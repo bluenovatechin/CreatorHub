@@ -14,7 +14,6 @@ export function notFoundHandler(_req: Request, _res: Response, next: NextFunctio
 }
 
 /** Never leaks stack traces or internal messages. Clients get a code, an i18n key and the request id. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   let appErr: AppError;
   if (err instanceof AppError) {

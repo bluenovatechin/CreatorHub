@@ -48,6 +48,12 @@
 - Code checks: 30 per 15 min.
 - Refresh: 30/min.
 - Logged-in routes: 120/min.
+- Messages: 40 per 10 min. Reports and disputes: 10/hour.
+
+**Doing important things once (`Idempotency-Key` header)**
+- Money and state actions accept an optional `Idempotency-Key` header (8–100 letters, digits, `-`, `_`): submit payment, select shortlist, accept offer, start campaign, review payment.
+- The same key and body again → the first answer is replayed (header `Idempotent-Replayed: true`). Same key with a different body → 409 `errors.idempotencyMismatch`. Still running → 409 `errors.requestInProgress`. Failed answers are not remembered.
+- Keys are per user and kept 24 hours (`middleware/idempotency.ts`). The website sends them through `useIdempotencyKey()` (`packages/ui`).
 
 ---
 
@@ -81,6 +87,7 @@
 |---|---|---|---|
 | `POST /auth/admin/login` | 🌐 | `{email,password}` → `{mfaToken}` (5 min) | admin `LoginPage` step 1 |
 | `POST /auth/admin/totp/verify` | mfaToken | `{mfaToken,code}` → `{accessToken,user}` + cookie `bn_admin_rt` | admin `LoginPage` step 2 |
+| `POST /auth/admin/recovery` | mfaToken | `{mfaToken,code}` (a one-time recovery code; case, spaces and dashes ignored) → `{accessToken,user,recoveryCodesLeft}`. Audited and emailed. | admin `LoginPage` → "Lost your phone?" |
 | `POST /auth/admin/refresh` | admin cookie | → `{accessToken,user}` | admin `AdminAuthProvider` |
 | `POST /auth/admin/logout` | admin cookie | | admin menu |
 | `POST /auth/admin/password/change` | 🛡️ any | `{currentPassword,password,confirmPassword}` | admin Settings |
@@ -94,6 +101,9 @@
 | `POST /creators/me/reapply` | Start again after rejection (after the waiting period) | `CreatorStatusPage` |
 | `GET /opportunities` | Open campaigns in their categories (approved creators only) | `OpportunitiesPage` |
 | `POST /opportunities/:id/interest` | `{interested:boolean}` | `OpportunitiesPage` |
+| `POST /opportunities/:id/apply` | `{pitch (20–1000), proposedRate?}`: apply once per campaign (approved creators, open campaigns in their categories) | `ApplyDialog` |
+| `GET /applications` | My applications with status (and the team's note when declined) | `OpportunitiesPage` → "My applications" |
+| `POST /applications/:id/withdraw` | Withdraw my own SUBMITTED application | `OpportunitiesPage` |
 | `GET /offers`, `GET /offers/:id` | Own offers | `OffersPage`, `OfferDetailPage` |
 | `POST /offers/:id/accept` | Accept → creates a Deal | `OfferDetailPage` (dialog) |
 | `POST /offers/:id/decline` | `{reason, note?}` | `OfferDetailPage` (dialog) |
@@ -116,9 +126,39 @@
 ## Deals and notifications (`modules/deals/deals.routes.ts`)
 | Method & path | Access | Purpose | Called from |
 |---|---|---|---|
-| `GET /deals`, `GET /deals/:id` | 🎨 🏢 (own only) | Deals list and detail | `CreatorDealsPage`, `BrandDealsPage` |
+| `GET /deals`, `GET /deals/:id` | 🎨 🏢 (own only) | Deals list and detail, with `submissions` (each side sees only what it may), `revisionsLeft`, `dispute`, `myRating` | `CreatorDealsPage`, `CreatorDealDetailPage`, `BrandDealsPage`, `BrandDealDetailPage`, `IntroReelPage` |
+| `POST /deals/:id/draft` | 🎨 (approved) | `{url (https), note?}` → DRAFT_SUBMITTED | `DealWorkPanel` |
+| `POST /deals/:id/live` | 🎨 (approved) | `{url (Instagram post/reel), note?}` → LIVE_SUBMITTED | `DealWorkPanel` |
+| `POST /deals/:id/review` | 🏢 | `{decision:'APPROVE'\|'REVISION', note?}` on a forwarded draft (REVISION needs a note and uses one of `maxRevisions`) | `DealWorkPanel` |
+| `POST /deals/:id/dispute` | 🎨 🏢 (brand deals) | `{reason, description (20+)}` → deal DISPUTED until the team resolves it | `DealTrust` → "Report a problem" |
+| `POST /deals/:id/rating` | 🎨 🏢 (completed brand deals) | `{stars 1–5, comment?}` once per side (team-only) | `DealTrust` → rating box |
 | `GET /notifications` | 🔑 | Latest 30 + unread count | bell icon (`layout.tsx`), `NotificationsPage` |
 | `POST /notifications/read` | 🔑 | `{all:true}` or `{ids:[…]}` | `NotificationsPage` |
+
+## More website routes (October 2026)
+| Method & path | Access | Purpose | Called from |
+|---|---|---|---|
+| `PATCH /me/preferences` | 🔑 | `{preferredLanguage?, emailNotifications?}` | language switch, Settings → Email notifications |
+| `PUT /creators/me/profile` | 🎨 approved | Update bio, areas, languages, reels, self-reported stats, rate card, barter, availability (identity fields stay locked) | `CreatorProfilePage` (`/creator/profile`) |
+| `GET /campaigns?limit=&cursor=` | 🏢 | Paged list (meta.nextCursor) | `CampaignsPage` → Load more |
+| `POST /campaigns/:id/duplicate` | 🏢 (own) | New DRAFT copied from a campaign, without dates | Campaign page → "Copy campaign" |
+| `POST /contact` | 🌐 (5/hour) | `{name, email, phone?, topic, message, website (hidden trap)}` | `ContactPage` |
+
+Areas: creator onboarding step 1, `PUT /brands/me` and `PUT /creators/me/profile` accept `areas` (several city keys). A new campaign starts with the brand's areas as its cities. Deliverables and rate cards accept only `REEL`, `STORY`, `COLLAB` (older formats stay readable on old records).
+
+## Messages with the team (`modules/messages/messages.routes.ts`): 🎨 🏢
+Creators and brands only ever talk to the Bluenova team, never to each other. Own conversations only (else 404).
+| Method & path | Purpose | Called from |
+|---|---|---|
+| `GET /conversations` | My conversations, newest activity first, with unread counts | `MessagesPage` |
+| `POST /conversations` | `{subject, body, topic?:{type:'CAMPAIGN'\|'DEAL', id}}` (topic must be my own) | `MessagesPage` → "New message" |
+| `GET /conversations/:id/messages?cursor=` | Messages (newest 50); marks them read. Team replies show as "Bluenova team" | `MessagesPage` |
+| `POST /conversations/:id/messages` | `{body}`; re-opens a closed conversation | `MessagesPage` |
+
+## Reports (`modules/trust/reports.routes.ts`): 🎨 🏢
+| Method & path | Purpose | Called from |
+|---|---|---|
+| `POST /reports` | `{targetType, targetId, reason, details}`: creators report campaigns they can see; brands report creators on their shortlist/deals. One open report per target. | `ReportButton` (offer page, brand deal page) |
 
 ## Admin (`modules/admin/*.ts`, `modules/payments/payments.routes.ts`): 🛡️
 | Method & path | Team roles | Purpose | Admin page |
@@ -151,3 +191,29 @@
 | `GET /admin/settings/payment` | finance (payments ON) | Bank/UPI details | `SettingsPage` |
 | `PUT /admin/settings/payment` | **super_admin** (payments ON) | Save bank/UPI details | `SettingsPage` |
 | `GET /admin/notifications`, `POST /admin/notifications/read` | any | Team notifications | – |
+| `GET /admin/security` | any (own account) | `{totpEnabled, recoveryCodesLeft}` | Settings → Security |
+| `POST /admin/security/recovery-codes` | any (own account) | `{currentPassword}` → 10 new codes, shown once (old ones stop working) | Settings → Security |
+| `POST /admin/security/totp/start` | any (own account) | `{currentPassword}` → new authenticator key | Settings → Security → "Set up a new phone" |
+| `POST /admin/security/totp/confirm` | any (own account) | `{code}` from the new phone → switches over, logs out other devices, returns a fresh `accessToken` | Settings → Security |
+| `GET /admin/deals?status=` | campaign_manager, reviewer (intro reels only) | Work review queue (default: waiting for the team) | `WorkReviewPage` (`/deals`) |
+| `POST /admin/deals/:id/draft-review` | campaign_manager, reviewer (intro) | `{decision:'APPROVE'\|'REVISION', note?}`: forward to brand / approve intro, or send back | `WorkReviewPage` |
+| `POST /admin/deals/:id/live-review` | campaign_manager, reviewer (intro) | `{decision:'VERIFY'\|'REJECT', note?}`: complete the deal (and the campaign when it was the last), or ask for a fix | `WorkReviewPage` |
+| `GET /admin/campaigns/:id/applications` | campaign_manager | Applications with the creator card | `CampaignDetailPage` → `ApplicationsCard` |
+| `POST /admin/applications/:id/decision` | campaign_manager | `{decision:'SHORTLIST', creatorPayout, brandPrice?, note?}` adds to the shortlist; `{decision:'DECLINE', note?}` | `ApplicationsCard` |
+| `GET /admin/conversations?status=WAITING\|OPEN\|CLOSED\|ALL` | reviewer, campaign_manager, finance | Inbox | `InboxPage` (`/inbox`) |
+| `POST /admin/conversations` | reviewer, campaign_manager, finance | `{userId, subject, body}` start a conversation with a creator/brand | – |
+| `GET /admin/conversations/:id/messages` | reviewer, campaign_manager, finance | Read a conversation (audited) | `InboxPage` |
+| `POST /admin/conversations/:id/messages` | reviewer, campaign_manager, finance | `{body}` reply as "Bluenova team" | `InboxPage` |
+| `POST /admin/conversations/:id/status` | reviewer, campaign_manager, finance | `{status:'OPEN'\|'CLOSED'}` | `InboxPage` |
+| `GET /admin/disputes?status=` | campaign_manager | Disputes | `TrustPage` (`/trust`) |
+| `POST /admin/disputes/:id/resolve` | campaign_manager | `{outcome:'CONTINUE'\|'CANCEL', note}`: back to where the deal was, or cancel (no money moves automatically) | `TrustPage` |
+| `GET /admin/reports?status=` | reviewer, campaign_manager | Reports | `TrustPage` → Reports |
+| `POST /admin/reports/:id/review` | reviewer, campaign_manager | `{outcome:'ACTIONED'\|'DISMISSED', note?}` (note stays internal) | `TrustPage` |
+| `GET /admin/ratings?targetType=&targetId=` | reviewer, campaign_manager | Ratings with comments for one creator/brand | creator page → Ratings |
+| `POST /admin/deals/:id/amend` | campaign_manager | `{reason, creatorPayout?, brandPrice?, draftDue?, liveDue?, maxRevisions?}`: recorded on the deal (each side sees its own part), audited | Work review → "Change terms" |
+| `POST /admin/deals/:id/cancel` | campaign_manager | `{reason}`: cancel an unfinished deal | Work review → "Cancel deal" |
+| `GET /admin/deals?status=OVERDUE` | campaign_manager, reviewer | Work whose deadline passed while it was the creator's turn | Work review → Overdue |
+| `GET /admin/emails?status=` | **super_admin** | Notification email log (status, tries, provider error) + 24 h count vs daily limit | `EmailLogPage` (`/emails`) |
+| `POST /admin/emails/:id/retry` | **super_admin** | Send a FAILED email again | `EmailLogPage` |
+| `GET /admin/enquiries?status=OPEN\|HANDLED` | reviewer, campaign_manager, finance | Contact-page messages (audited) | Inbox → Website enquiries |
+| `POST /admin/enquiries/:id/handled` | reviewer, campaign_manager, finance | Mark handled | Inbox → Website enquiries |

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Public pages only. Update the address if the website moves to its own domain (docs/DEPLOYMENT.md). -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://creator-hub-mu-five.vercel.app/</loc></url>
+  <url><loc>https://creator-hub-mu-five.vercel.app/for-creators</loc></url>
+  <url><loc>https://creator-hub-mu-five.vercel.app/for-brands</loc></url>
+  <url><loc>https://creator-hub-mu-five.vercel.app/how-it-works</loc></url>
+  <url><loc>https://creator-hub-mu-five.vercel.app/pricing</loc></url>
+  <url><loc>https://creator-hub-mu-five.vercel.app/faq</loc></url>
+  <url><loc>https://creator-hub-mu-five.vercel.app/contact</loc></url>
+  <url><loc>https://creator-hub-mu-five.vercel.app/privacy</loc></url>
+  <url><loc>https://creator-hub-mu-five.vercel.app/terms</loc></url>
+  <url><loc>https://creator-hub-mu-five.vercel.app/signup</loc></url>
+</urlset>
