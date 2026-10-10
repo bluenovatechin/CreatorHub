@@ -40,9 +40,10 @@ const schema = z.object({
   BREVO_API_KEY: z.string().optional(),
   // Most notification emails sent per 24 hours (Brevo's free plan allows about 300/day; codes and resets are extra).
   EMAIL_DAILY_LIMIT: z.coerce.number().int().min(0).max(100_000).default(250),
-  // Admin login asks for the authenticator code (two-step login). ON unless set to "false".
-  // Switch OFF only temporarily for testing: then an admin password alone opens the admin panel.
-  ADMIN_TOTP_REQUIRED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  // Admin login asks for the authenticator code (two-step login) only when this is "true".
+  // Owner decision 2026-10-10: OFF by default while testing (password alone opens the admin panel; the panel shows
+  // a red warning bar). Set ADMIN_TOTP_REQUIRED=true locally and on Render to switch the code step back on.
+  ADMIN_TOTP_REQUIRED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   // "Continue with Google": OAuth client ID from Google Cloud Console (public value). Leave empty to hide the button.
   GOOGLE_CLIENT_ID: z.string().optional().transform((v) => (v ? v : undefined)),
   SMTP_HOST: z.string().default('smtp.gmail.com'),

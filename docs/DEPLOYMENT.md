@@ -26,7 +26,7 @@
 | `DATA_ENCRYPTION_KEY` (or `DATA_ENCRYPTION_KEYS`) | base64 of 32 random bytes | Encrypts admin authenticator keys. **Secret, and must be the same locally and on Render.** |
 | `APP_BASE_URL`, `ADMIN_BASE_URL` | `http://localhost:5180` / `:5181` | Used in email links |
 | `EMAIL_PROVIDER` | `console` · `smtp` · `brevo` · `resend` | How emails are sent (see §4) |
-| `ADMIN_TOTP_REQUIRED` | `true` (default) · `false` | `false` = admin login without the authenticator code. **Testing only**: a red bar warns in the admin panel and every such login is audited. Set back to `true` (or delete it) when testing is done. |
+| `ADMIN_TOTP_REQUIRED` | `false` (default for now) · `true` | `false` = admin login with the password only (red warning bar in the admin panel; every such login audited). **Set `true` locally and on Render when testing is done** to require the authenticator code again. |
 | `EMAIL_DAILY_LIMIT` | number, default `250` | Most notification emails per 24 h (Brevo free ≈ 300/day). Over the limit, emails wait. Codes and password emails are not counted. |
 | `SMTP_USER`, `SMTP_PASS` | Gmail address + 16-letter App password | For `smtp`. **Secret.** |
 | `BREVO_API_KEY` / `RESEND_API_KEY` | `xkeysib-…` / `re_…` | For `brevo` / `resend`. **Secret.** |

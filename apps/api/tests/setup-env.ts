@@ -9,3 +9,5 @@ process.env.DATA_ENCRYPTION_ACTIVE_VERSION = 'v1';
 // Tests must never send real email, whatever apps/api/.env says.
 process.env.EMAIL_PROVIDER = 'console';
 process.env.TEST_MODE = 'false';
+// Tests keep the full admin login (password + authenticator code), so it stays tested while it is off live.
+process.env.ADMIN_TOTP_REQUIRED = 'true';
